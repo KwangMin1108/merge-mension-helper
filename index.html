@@ -29,7 +29,7 @@ body {
 }
 
 /* ── Screens ───────────────────────────────── */
-.screen { display: none; flex-direction: column; min-height: 100vh; }
+.screen { display: none; flex-direction: column; height: 100vh; overflow: hidden; }
 .screen.active { display: flex; }
 
 /* ── Header ────────────────────────────────── */
@@ -88,15 +88,18 @@ body {
 .area-body {
   flex: 1;
   display: flex;
-  align-items: flex-start; /* allows sticky to work */
-  overflow-y: auto;        /* page scroll lives here */
+  overflow: hidden; /* each column scrolls independently */
+  min-height: 0;
 }
 
-/* Left: quest list — full height, no inner scroll */
+/* Left: quest list — own scroll */
 .quest-panel {
   width: 55%;
   border-right: 1px solid var(--border);
   flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
 .panel-title {
   font-size: 11px;
@@ -107,21 +110,19 @@ body {
   padding: 8px 12px 6px;
   border-bottom: 1px solid var(--border);
   background: var(--surface);
-  position: sticky;
-  top: 0;
-  z-index: 2;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
 }
-#questList { padding: 8px; }
+#questList { padding: 8px; overflow-y: auto; flex: 1; }
 
-/* Right: sticky panel — follows page scroll */
+/* Right panel — fixed alongside left, own internal scroll */
 .right-panel {
   width: 45%;
-  position: sticky;
-  top: 0;
-  height: 100vh;
   display: flex;
   flex-direction: column;
   flex-shrink: 0;
+  overflow: hidden;
 }
 .items-panel {
   flex: 1;
@@ -138,14 +139,50 @@ body {
 }
 .panel-scroll { flex: 1; overflow-y: auto; padding: 8px; }
 
-/* Mobile: stack vertically, right panel not sticky */
+/* view toggle button in panel title */
+.view-toggle {
+  margin-left: auto;
+  background: var(--card);
+  border: 1px solid var(--border);
+  color: var(--text-dim);
+  font-size: 9px;
+  padding: 1px 7px;
+  border-radius: 10px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+/* compact icon grid */
+.items-compact-grid { display: flex; flex-wrap: wrap; gap: 4px; padding: 6px; }
+.item-chip {
+  position: relative;
+  width: 42px;
+  height: 42px;
+  flex-shrink: 0;
+  cursor: default;
+}
+.item-chip img { width: 36px; height: 36px; object-fit: contain; border-radius: 6px; border: 1px solid var(--border); display: block; }
+.item-chip-ph {
+  width: 36px; height: 36px; background: var(--border); border-radius: 6px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 8px; color: var(--text-dim);
+}
+.item-chip-qty {
+  position: absolute; bottom: 0; right: 0;
+  background: var(--accent2); color: #000;
+  font-size: 9px; font-weight: 700;
+  padding: 0 3px; border-radius: 4px; line-height: 14px;
+  pointer-events: none;
+}
+
+/* Mobile: stack vertically */
 @media (max-width: 640px) {
-  .area-body { flex-direction: column; overflow-y: auto; }
-  .quest-panel { width: 100%; border-right: none; border-bottom: 1px solid var(--border); }
-  .right-panel { width: 100%; position: static; height: auto; flex-direction: row; }
-  .items-panel { flex: 1; border-bottom: none; border-right: 1px solid var(--border); max-height: 50vmax; }
-  .rewards-panel { width: 42%; height: auto; max-height: 50vmax; }
-  .panel-title { position: static; }
+  .area-body { flex-direction: column; overflow-y: auto; overflow-x: hidden; }
+  .quest-panel { width: 100%; border-right: none; border-bottom: 1px solid var(--border); max-height: 55vh; }
+  #questList { overflow-y: auto; }
+  .right-panel { width: 100%; height: auto; flex-direction: row; flex-shrink: 0; }
+  .items-panel { flex: 1; border-bottom: none; border-right: 1px solid var(--border); max-height: 45vmax; }
+  .rewards-panel { width: 42%; height: auto; max-height: 45vmax; }
 }
 
 
@@ -266,7 +303,7 @@ body {
     <!-- Right: items + rewards -->
     <div class="right-panel">
       <div class="items-panel">
-        <div class="panel-title">🧰 남은 필요 아이템</div>
+        <div class="panel-title">🧰 남은 필요 아이템<button class="view-toggle" id="itemViewToggle" onclick="toggleItemView()">목록</button></div>
         <div class="panel-scroll" id="itemsList"></div>
       </div>
       <div class="rewards-panel">
@@ -281,6 +318,7 @@ body {
 let DATA = null;
 let currentArea = null;
 let currentTaskIndex = 0;
+let itemViewCompact = true;
 
 function imgUrl(url) {
   if (!url) return null;
@@ -411,23 +449,43 @@ function renderItems(tasks, done) {
     el.innerHTML = '<div class="empty">없음 🎉</div>'; return;
   }
 
-  el.innerHTML = entries.map(([id, qty]) => {
-    const item = DATA.items[id] || {};
-    const name = item.name || id;
-    const chain = item.chainName || '';
-    const url = imgUrl(item.imageUrl);
-    const icon = url
-      ? `<img src="${url}" alt="${name}" loading="lazy" onerror="this.parentElement.querySelector('.item-icon-ph').style.display='flex';this.style.display='none'">`
-      : '';
-    const ph = `<div class="item-icon-ph" style="${url ? 'display:none' : ''}">${id.slice(0,3)}</div>`;
-    return `<div class="item-row">${icon}${ph}
-      <div class="item-info">
-        <div class="item-name" title="${name}">${name}</div>
-        <div class="item-chain">${chain}</div>
-      </div>
-      <div class="item-qty">×${qty}</div>
-    </div>`;
-  }).join('');
+  if (itemViewCompact) {
+    el.innerHTML = `<div class="items-compact-grid">${entries.map(([id, qty]) => {
+      const item = DATA.items[id] || {};
+      const name = item.name || id;
+      const url = imgUrl(item.imageUrl);
+      const tip = `${name} ×${qty}`;
+      const icon = url
+        ? `<img src="${url}" alt="${name}" title="${tip}" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">`
+        : '';
+      const ph = `<div class="item-chip-ph" title="${tip}" style="${url ? 'display:none' : ''}">${id.slice(0,3)}</div>`;
+      return `<div class="item-chip">${icon}${ph}<span class="item-chip-qty">×${qty}</span></div>`;
+    }).join('')}</div>`;
+  } else {
+    el.innerHTML = entries.map(([id, qty]) => {
+      const item = DATA.items[id] || {};
+      const name = item.name || id;
+      const chain = item.chainName || '';
+      const url = imgUrl(item.imageUrl);
+      const icon = url
+        ? `<img src="${url}" alt="${name}" loading="lazy" onerror="this.parentElement.querySelector('.item-icon-ph').style.display='flex';this.style.display='none'">`
+        : '';
+      const ph = `<div class="item-icon-ph" style="${url ? 'display:none' : ''}">${id.slice(0,3)}</div>`;
+      return `<div class="item-row">${icon}${ph}
+        <div class="item-info">
+          <div class="item-name" title="${name}">${name}</div>
+          <div class="item-chain">${chain}</div>
+        </div>
+        <div class="item-qty">×${qty}</div>
+      </div>`;
+    }).join('');
+  }
+}
+
+function toggleItemView() {
+  itemViewCompact = !itemViewCompact;
+  document.getElementById('itemViewToggle').textContent = itemViewCompact ? '목록' : '아이콘';
+  if (currentArea) renderItems(currentArea.tasks, currentTaskIndex);
 }
 
 function renderRewards(tasks, done) {
