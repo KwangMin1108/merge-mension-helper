@@ -185,6 +185,13 @@ body {
   padding: 0 3px; border-radius: 4px; line-height: 14px;
   pointer-events: none;
 }
+.item-chip-lv {
+  position: absolute; top: 0; left: 0;
+  background: rgba(74,144,226,0.9); color: #fff;
+  font-size: 8px; font-weight: 700;
+  padding: 0 2px; border-radius: 3px; line-height: 13px;
+  pointer-events: none;
+}
 
 /* Mobile: stack vertically */
 @media (max-width: 640px) {
@@ -472,7 +479,8 @@ function renderQuests(tasks, done) {
       const item = DATA.items[r.name] || {};
       const name = item.name || r.name;
       const url = imgUrl(item.imageUrl);
-      const tip = `${name} ×${r.amount}`;
+      const lv = item.level || 1;
+      const tip = `${name} (L${lv}) ×${r.amount}`;
       const icon = url
         ? `<img src="${url}" alt="${name}" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='inline-flex'">`
         : '';
@@ -512,7 +520,13 @@ function renderItems(tasks, done) {
     for (const req of task.requirements)
       totals[req.name] = (totals[req.name] || 0) + req.amount;
 
-  const entries = Object.entries(totals).sort((a, b) => b[1] - a[1]);
+  // Sort: group by chainName alphabetically, within chain by level desc
+  const entries = Object.entries(totals).sort((a, b) => {
+    const ia = DATA.items[a[0]] || {}, ib = DATA.items[b[0]] || {};
+    const ca = ia.chainName || a[0], cb = ib.chainName || b[0];
+    if (ca !== cb) return ca.localeCompare(cb);
+    return (ib.level || 1) - (ia.level || 1);
+  });
   if (!entries.length) {
     el.innerHTML = '<div class="empty">없음 🎉</div>'; return;
   }
@@ -521,13 +535,14 @@ function renderItems(tasks, done) {
     el.innerHTML = `<div class="items-compact-grid">${entries.map(([id, qty]) => {
       const item = DATA.items[id] || {};
       const name = item.name || id;
+      const lv = item.level || 1;
       const url = imgUrl(item.imageUrl);
-      const tip = `${name} ×${qty}`;
+      const tip = `${name} (L${lv}) ×${qty}`;
       const icon = url
         ? `<img src="${url}" alt="${name}" title="${tip}" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">`
         : '';
       const ph = `<div class="item-chip-ph" title="${tip}" style="${url ? 'display:none' : ''}">${id.slice(0,3)}</div>`;
-      return `<div class="item-chip">${icon}${ph}<span class="item-chip-qty">×${qty}</span></div>`;
+      return `<div class="item-chip">${icon}${ph}<span class="item-chip-qty">×${qty}</span><span class="item-chip-lv">L${lv}</span></div>`;
     }).join('')}</div>`;
   } else {
     el.innerHTML = entries.map(([id, qty]) => {
@@ -584,13 +599,14 @@ function renderRewards(tasks, done) {
   for (const [id, cnt] of Object.entries(items)) {
     const item = DATA.items[id] || {};
     const name = item.name || id;
+    const lv = item.level || 1;
     const url = imgUrl(item.imageUrl);
-    const tip = `${name}${cnt > 1 ? ' ×'+cnt : ''}`;
+    const tip = `${name} (L${lv})`;
     const icon = url
       ? `<img src="${url}" alt="${name}" title="${tip}" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">`
       : '';
     const ph = `<div class="item-chip-ph" title="${tip}" style="${url ? 'display:none' : ''}">${id.slice(0,3)}</div>`;
-    chips.push(`<div class="item-chip">${icon}${ph}${cnt > 1 ? `<span class="item-chip-qty">×${cnt}</span>` : ''}</div>`);
+    chips.push(`<div class="item-chip">${icon}${ph}${cnt > 1 ? `<span class="item-chip-qty">×${cnt}</span>` : ''}<span class="item-chip-lv">L${lv}</span></div>`);
   }
 
   el.innerHTML = `<div class="items-compact-grid">${chips.join('')}</div>`;
