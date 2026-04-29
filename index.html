@@ -88,17 +88,15 @@ body {
 .area-body {
   flex: 1;
   display: flex;
-  overflow: hidden;
-  min-height: 0;
+  align-items: flex-start; /* allows sticky to work */
+  overflow-y: auto;        /* page scroll lives here */
 }
 
-/* Left: quest list */
+/* Left: quest list — full height, no inner scroll */
 .quest-panel {
   width: 55%;
   border-right: 1px solid var(--border);
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
+  flex-shrink: 0;
 }
 .panel-title {
   font-size: 11px;
@@ -108,43 +106,48 @@ body {
   letter-spacing: .05em;
   padding: 8px 12px 6px;
   border-bottom: 1px solid var(--border);
-  flex-shrink: 0;
   background: var(--surface);
+  position: sticky;
+  top: 0;
+  z-index: 2;
 }
-#questList { flex: 1; overflow-y: auto; padding: 8px; }
+#questList { padding: 8px; }
 
-/* Right: items + rewards stacked */
+/* Right: sticky panel — follows page scroll */
 .right-panel {
   width: 45%;
+  position: sticky;
+  top: 0;
+  height: 100vh;
   display: flex;
   flex-direction: column;
-  overflow: hidden;
+  flex-shrink: 0;
 }
 .items-panel {
   flex: 1;
   border-bottom: 1px solid var(--border);
   display: flex;
   flex-direction: column;
-  overflow: hidden;
   min-height: 0;
 }
 .rewards-panel {
-  height: 38%;
+  height: 36%;
   display: flex;
   flex-direction: column;
-  overflow: hidden;
   flex-shrink: 0;
 }
 .panel-scroll { flex: 1; overflow-y: auto; padding: 8px; }
 
-/* Mobile: stack vertically */
+/* Mobile: stack vertically, right panel not sticky */
 @media (max-width: 640px) {
-  .area-body { flex-direction: column; overflow: visible; height: auto; }
-  .quest-panel { width: 100%; border-right: none; border-bottom: 1px solid var(--border); max-height: 55vh; }
-  .right-panel { width: 100%; flex-direction: row; height: auto; }
-  .items-panel { flex: 1; border-bottom: none; border-right: 1px solid var(--border); max-height: 45vmax; }
-  .rewards-panel { width: 45%; height: auto; max-height: 45vmax; }
+  .area-body { flex-direction: column; overflow-y: auto; }
+  .quest-panel { width: 100%; border-right: none; border-bottom: 1px solid var(--border); }
+  .right-panel { width: 100%; position: static; height: auto; flex-direction: row; }
+  .items-panel { flex: 1; border-bottom: none; border-right: 1px solid var(--border); max-height: 50vmax; }
+  .rewards-panel { width: 42%; height: auto; max-height: 50vmax; }
+  .panel-title { position: static; }
 }
+
 
 /* ── Quest items ───────────────────────────── */
 .quest-item {
