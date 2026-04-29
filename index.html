@@ -359,6 +359,13 @@ let currentArea = null;
 let currentTaskIndex = 0; // user is currently ON this task (0-based index in sorted tasks)
 let activeTab = 'quests';
 
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+function imgUrl(url) {
+  if (!url) return null;
+  // Encode spaces and special chars in local paths
+  return url.split('/').map(encodeURIComponent).join('/');
+}
+
 // ─── State persistence ────────────────────────────────────────────────────────
 function saveState() {
   const s = {};
@@ -457,7 +464,7 @@ function renderQuests(tasks, doneCount) {
       const item = DATA.items[r.name] || {};
       const name = item.name || r.name;
       const imgHtml = item.imageUrl
-        ? `<img src="${item.imageUrl}" alt="${name}" loading="lazy" onerror="this.style.display='none'">`
+        ? `<img src="${imgUrl(item.imageUrl)}" alt="${name}" loading="lazy" onerror="this.style.display='none'">`
         : `<div class="req-icon-placeholder">${r.name.slice(0,2)}</div>`;
       return `<span class="req-chip">${imgHtml}${name}×${r.amount}</span>`;
     }).join('');
@@ -515,7 +522,7 @@ function renderItems(tasks, doneCount) {
         const item = DATA.items[id] || {};
         const name = item.name || id;
         const imgHtml = item.imageUrl
-          ? `<img src="${item.imageUrl}" alt="${name}" loading="lazy" onerror="this.parentElement.querySelector('.item-icon-placeholder').style.display='flex';this.style.display='none'">`
+          ? `<img src="${imgUrl(item.imageUrl)}" alt="${name}" loading="lazy" onerror="this.parentElement.querySelector('.item-icon-placeholder').style.display='flex';this.style.display='none'">`
           : '';
         const ph = `<div class="item-icon-placeholder" style="${item.imageUrl ? 'display:none' : ''}">${id.slice(0,3)}</div>`;
         return `
