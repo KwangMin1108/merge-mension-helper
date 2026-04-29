@@ -505,10 +505,12 @@ function renderQuests(tasks, done) {
     </div>`;
   }).join('');
 
-  // Scroll current task into view instantly
+  // Scroll current task to ~25% from top
   requestAnimationFrame(() => {
     const cur = el.querySelector('.quest-item.current');
-    if (cur) cur.scrollIntoView({ block: 'center', behavior: 'instant' });
+    if (!cur) return;
+    const offset = cur.offsetTop - el.clientHeight * 0.25;
+    el.scrollTop = Math.max(0, offset);
   });
 }
 
