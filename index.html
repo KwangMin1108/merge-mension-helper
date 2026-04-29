@@ -346,16 +346,55 @@ function loadTaskIndex(areaName) {
   return JSON.parse(localStorage.getItem('mmh_progress') || '{}')[areaName] ?? 0;
 }
 
+// ── URL routing ───────────────────────────────────────────────────
+function areaToSlug(area) {
+  return area.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+}
+
+function findAreaBySlug(slug) {
+  const q = decodeURIComponent(slug).toLowerCase().replace(/-/g, ' ');
+  return DATA.areas.find(a =>
+    a.name.toLowerCase().replace(/[^a-z0-9 ]/g, ' ').trim().includes(q) ||
+    (a.nameKo && a.nameKo.includes(decodeURIComponent(slug)))
+  );
+}
+
+function getHashParams() {
+  const h = location.hash.slice(1);
+  if (!h) return null;
+  const [slug, idx] = h.split('/');
+  return { slug, inGameIndex: idx !== undefined ? parseInt(idx, 10) : null };
+}
+
+function handleHash() {
+  if (!DATA) return;
+  const p = getHashParams();
+  if (p && p.slug) {
+    const area = findAreaBySlug(p.slug);
+    if (area) {
+      let arrayPos = loadTaskIndex(area.name);
+      if (p.inGameIndex !== null && !isNaN(p.inGameIndex)) {
+        const found = area.tasks.findIndex(t => t.index === p.inGameIndex);
+        if (found >= 0) arrayPos = found;
+      }
+      _openArea(area, arrayPos);
+      return;
+    }
+  }
+  showAreaList();
+}
+
 // ── Load data ─────────────────────────────────────────────────────
 async function loadData() {
   const resp = await fetch('data.json');
   DATA = await resp.json();
   document.getElementById('loading').style.display = 'none';
-  showAreaList();
+  handleHash();
 }
 
 // ── Screen: Area List ─────────────────────────────────────────────
 function showAreaList() {
+  history.replaceState(null, '', location.pathname + location.search);
   showScreen('screenAreas');
   const saved = JSON.parse(localStorage.getItem('mmh_progress') || '{}');
   const container = document.getElementById('areaList');
@@ -389,8 +428,14 @@ function showAreaList() {
 
 // ── Screen: Area Detail ───────────────────────────────────────────
 function openArea(area) {
+  const arrayPos = loadTaskIndex(area.name);
+  history.pushState(null, '', `#${areaToSlug(area)}/${area.tasks[arrayPos]?.index ?? arrayPos}`);
+  _openArea(area, arrayPos);
+}
+
+function _openArea(area, arrayPos) {
   currentArea = area;
-  currentTaskIndex = loadTaskIndex(area.name);
+  currentTaskIndex = arrayPos;
   showScreen('screenArea');
   document.getElementById('areaTitle').textContent = area.nameKo || area.name;
   render();
@@ -534,6 +579,8 @@ function renderRewards(tasks, done) {
 function setCurrentTask(index) {
   currentTaskIndex = index;
   saveState();
+  const inGameIdx = currentArea.tasks[index]?.index ?? index;
+  history.replaceState(null, '', `#${areaToSlug(currentArea)}/${inGameIdx}`);
   render();
 }
 
@@ -543,6 +590,8 @@ function showScreen(id) {
 }
 
 // ── Boot ──────────────────────────────────────────────────────────
+window.addEventListener('popstate', handleHash);
+
 loadData().catch(err => {
   document.getElementById('loading').innerHTML = `
     <div style="color:var(--accent);font-size:16px">❌ 데이터 로드 실패</div>
