@@ -230,6 +230,8 @@ body {
 .quest-item.done .quest-desc { color: var(--done-text); }
 .current-tag { font-size: 9px; font-weight: 700; background: var(--accent2); color: #000; padding: 1px 5px; border-radius: 8px; flex-shrink: 0; }
 .quest-xp { font-size: 10px; color: var(--accent2); margin-top: 3px; }
+.quest-unlock { font-size: 10px; color: var(--text-dim); margin-top: 2px; }
+.quest-unlock span { color: var(--accent2); font-weight: 600; }
 .quest-item { display: flex; align-items: center; gap: 8px; }
 .quest-left { flex: 1; min-width: 0; }
 .quest-reqs {
@@ -476,6 +478,9 @@ function render() {
 
 function renderQuests(tasks, done) {
   const el = document.getElementById('questList');
+  const idToIndex = {};
+  for (const t of tasks) idToIndex[t.id] = t.index;
+
   el.innerHTML = tasks.map((task, i) => {
     const isDone = i < done;
     const isCurrent = i === done;
@@ -506,6 +511,11 @@ function renderQuests(tasks, done) {
           ${isCurrent ? '<span class="current-tag">현재</span>' : ''}
         </div>
         ${xp || rewardItemName ? `<div class="quest-xp">${xp ? `⭐ ${xp} XP` : ''}${xp && rewardItemName ? ' · ' : ''}${rewardItemName ? `🎁 ${rewardItemName}` : ''}</div>` : ''}
+        ${(() => {
+          const children = (task.children || []).map(id => idToIndex[id]).filter(n => n !== undefined).sort((a,b) => a-b);
+          if (children.length < 2) return '';
+          return `<div class="quest-unlock">🔓 <span>${children.join(', ')}</span></div>`;
+        })()}
       </div>
       ${reqs ? `<div class="quest-reqs">${reqs}</div>` : ''}
     </div>`;
