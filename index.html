@@ -193,14 +193,20 @@ body {
   pointer-events: none;
 }
 
-/* Mobile: stack vertically */
+/* Mobile: stack vertically, no page scroll */
 @media (max-width: 640px) {
-  .area-body { flex-direction: column; overflow-y: auto; overflow-x: hidden; }
-  .quest-panel { width: 100%; border-right: none; border-bottom: 1px solid var(--border); max-height: 55vh; }
-  #questList { overflow-y: auto; }
-  .right-panel { width: 100%; height: auto; flex-direction: row; flex-shrink: 0; }
-  .items-panel { flex: 1; border-bottom: none; border-right: 1px solid var(--border); max-height: 45vmax; }
-  .rewards-panel { width: 42%; height: auto; max-height: 45vmax; }
+  .area-body { flex-direction: column; overflow: hidden; }
+  .quest-panel {
+    width: 100%; border-right: none;
+    border-bottom: 1px solid var(--border);
+    flex: 1; min-height: 0;
+  }
+  .right-panel {
+    width: 100%; flex: 1; min-height: 0;
+    flex-direction: row; overflow: hidden;
+  }
+  .items-panel { min-height: 0; max-height: none; border-bottom: none; border-right: 1px solid var(--border); }
+  .rewards-panel { width: 38%; height: auto; min-height: 0; flex-shrink: 0; }
 }
 
 
