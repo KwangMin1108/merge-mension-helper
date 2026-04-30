@@ -215,16 +215,11 @@ body {
 /* All columns finished: tiny fixed-height thin-line band */
 .branch-cols.branch-cols-alldone { height: 10px; gap: 6px; }
 .branch-col {
-  /* Active: takes an equal share of remaining space */
+  /* Active: equal share of remaining space; visually transparent (no box) */
   flex: 1 1 0;
   min-width: 0;
-  border: 1px solid rgba(30,58,95,0.85);
-  border-radius: var(--radius);
-  padding: 4px;
-  background: rgba(255,255,255,0.02);
   position: relative;
-  container-type: inline-size; /* enables @container queries for narrow columns */
-  transition: flex-basis 0.35s ease, flex-grow 0.35s ease;
+  container-type: inline-size;
   overflow: hidden;
 }
 /* Done branch — thin strip, FULL HEIGHT (matches active column height).
@@ -255,29 +250,7 @@ body {
   pointer-events: none;
   z-index: 0;
 }
-/* Sidetrack: active but non-primary branch — always a thin blue strip */
-.branch-col.branch-sidetrack {
-  flex: 0 0 4px;
-  min-width: 4px;
-  padding: 0;
-  border: none;
-  border-radius: 0;
-  background: none;
-  overflow: hidden;
-}
-.branch-col.branch-sidetrack::before {
-  content: '';
-  position: absolute;
-  left: 0; top: 0; bottom: 0;
-  width: 100%;
-  background: linear-gradient(to bottom,
-    transparent 0%, rgba(74,144,226,0.50) 4%,
-    rgba(74,144,226,0.50) 96%, transparent 100%
-  );
-  pointer-events: none;
-  z-index: 0;
-}
-/* Active primary columns: no ::before — SVG connectors handle flow */
+/* Active columns: no ::before — SVG connectors handle flow */
 .branch-col .quest-item {
   position: relative;
   z-index: 1;
@@ -427,7 +400,7 @@ body {
       <h1>🏠 Merge Mansion Helper</h1>
       <div class="sub">지역을 선택하세요</div>
     </div>
-    <span class="ver-badge">v250501.3</span>
+    <span class="ver-badge">v250501.4</span>
   </div>
   <div id="areaList"></div>
   <div class="footer">Data sourced from <a href="https://merge-mansion.fandom.com/wiki/Areas" target="_blank">Merge Mansion Wiki</a> (CC-BY-SA)</div>
@@ -441,7 +414,7 @@ body {
       <h1 id="areaTitle"></h1>
       <div class="sub" id="areaSub"></div>
     </div>
-    <span class="ver-badge">v250501.3</span>
+    <span class="ver-badge">v250501.4</span>
   </div>
 
   <div class="progress-bar">
@@ -789,25 +762,12 @@ function renderSegments(segments, inArea) {
       return `<div class="branch-cols branch-cols-alldone" id="${id}">${thinHtml}</div>`;
     }
 
-    // Primary = column with ≥50% of the max task count → gets full width.
-    // Non-primary (short side tracks) → always a thin strip regardless of done state.
-    const maxLen = Math.max(...sorted.map(c => c.length));
-
     const colsHtml = sorted.map(colTasks => {
       const done = colTasks.length === 0 || colTasks.every(t => completedTaskIds.has(t.id));
-      const primary = colTasks.length * 2 >= maxLen; // ≥50% of max = primary
       const innerSegs = computeSegments(colTasks);
       const inner = renderSegments(innerSegs, inArea);
-
-      if (done) {
-        // Done: green→blue thin strip (--done-stop set by adjustDoneColumns)
-        return `<div class="branch-col branch-done">${inner}</div>`;
-      }
-      if (!primary) {
-        // Active non-primary: always a thin blue strip (side track)
-        return `<div class="branch-col branch-sidetrack">${inner}</div>`;
-      }
-      // Active primary: full width
+      // Done → green→blue thin strip. Active → transparent flex container (equal share).
+      if (done) return `<div class="branch-col branch-done">${inner}</div>`;
       return `<div class="branch-col">${inner}</div>`;
     }).join('');
 
