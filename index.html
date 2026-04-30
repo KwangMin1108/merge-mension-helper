@@ -224,12 +224,15 @@ body {
   transition: flex-basis 0.35s ease, flex-grow 0.35s ease;
   overflow: hidden;
 }
-/* Done branch: collapses to a fixed narrow strip */
+/* Done branch: no box at all — just a thin vertical line */
 .branch-col.branch-done {
-  flex: 0 0 26px;
-  min-width: 26px;
-  padding: 4px 2px;
-  cursor: default;
+  flex: 0 0 3px;
+  min-width: 3px;
+  padding: 0;
+  border: none;
+  border-radius: 0;
+  background: none;
+  overflow: visible;
 }
 /* Vertical connector line running the full height of each branch column */
 .branch-col::before {
@@ -244,10 +247,13 @@ body {
   pointer-events: none;
   z-index: 0;
 }
+/* Done branch line fills its 3px width entirely */
 .branch-col.branch-done::before {
+  left: 0;
+  width: 100%;
   background: linear-gradient(to bottom,
-    transparent 0%, rgba(116,198,157,0.35) 12%,
-    rgba(116,198,157,0.35) 88%, transparent 100%);
+    transparent 0%, rgba(116,198,157,0.55) 4%,
+    rgba(116,198,157,0.55) 96%, transparent 100%);
 }
 .branch-col .quest-item {
   position: relative;
@@ -716,17 +722,18 @@ function renderSegments(segments, inArea) {
   return segments.map(seg => {
     if (seg.type === 'linear') return renderQuestItem(seg.task, inArea);
 
-    // Branch section — CSS handles widths:
-    //   active → flex: 1 1 0  (shares available space equally)
-    //   done   → flex: 0 0 26px  (collapses to a fixed narrow strip)
-    // No JS formula needed; flexbox redistributes automatically.
+    // Branch section — CSS handles widths automatically:
+    //   active → flex: 1 1 0  (equal share of all remaining space)
+    //   done   → flex: 0 0 3px  (pure vertical line, no box, no content)
     const id = `bc${++_bcId}`;
 
     const colsHtml = seg.columns.map(colTasks => {
       const done = colTasks.length === 0 || colTasks.every(t => completedTaskIds.has(t.id));
+      // Done branch: render only the thin line strip — no inner content
+      if (done) return `<div class="branch-col branch-done"></div>`;
       const innerSegs = computeSegments(colTasks);
       const inner = renderSegments(innerSegs, inArea);
-      return `<div class="branch-col${done ? ' branch-done' : ''}">${inner}</div>`;
+      return `<div class="branch-col">${inner}</div>`;
     }).join('');
 
     return [
