@@ -210,6 +210,18 @@ body {
 }
 
 
+/* ── Branch layout ─────────────────────────── */
+.branch-cols { display: flex; gap: 4px; margin-bottom: 5px; }
+.branch-col {
+  flex: 1; min-width: 0;
+  border: 1px solid rgba(30,58,95,0.8);
+  border-radius: var(--radius);
+  padding: 4px;
+  background: rgba(255,255,255,0.02);
+}
+.branch-col .quest-item { margin-bottom: 4px; }
+.branch-col .quest-item:last-child { margin-bottom: 0; }
+
 /* ── Quest items ───────────────────────────── */
 .quest-item {
   padding: 8px 10px;
@@ -220,32 +232,54 @@ body {
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
   transition: background .1s;
+  display: flex; align-items: center; gap: 8px;
 }
 .quest-item.done { background: var(--done); border-color: #2d6a4f; }
 .quest-item.current { background: var(--current-bg); border-color: var(--current-border); box-shadow: 0 0 0 1px var(--current-border); }
-.quest-header { display: flex; align-items: baseline; gap: 6px; }
+.quest-item.locked { opacity: 0.45; cursor: default; }
+.quest-header { display: flex; align-items: baseline; gap: 6px; overflow: hidden; }
 .quest-idx { font-size: 10px; color: var(--text-dim); flex-shrink: 0; }
 .quest-item.done .quest-idx { color: var(--done-text); }
-.quest-desc { font-size: 13px; font-weight: 500; line-height: 1.35; flex: 1; }
+.quest-desc { font-size: 13px; font-weight: 500; line-height: 1.35; flex: 1; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; min-width: 0; }
 .quest-item.done .quest-desc { color: var(--done-text); }
-.current-tag { font-size: 9px; font-weight: 700; background: var(--accent2); color: #000; padding: 1px 5px; border-radius: 8px; flex-shrink: 0; }
+.done-tag { font-size: 9px; font-weight: 700; background: var(--done-text); color: #000; padding: 1px 4px; border-radius: 8px; flex-shrink: 0; }
 .quest-xp { font-size: 10px; color: var(--accent2); margin-top: 3px; }
 .quest-unlock { font-size: 10px; color: var(--text-dim); margin-top: 2px; }
 .quest-unlock span { color: var(--accent2); font-weight: 600; }
-.quest-item { display: flex; align-items: center; gap: 8px; }
 .quest-left { flex: 1; min-width: 0; }
 .quest-reqs {
-  display: flex; flex-wrap: wrap; gap: 4px;
+  display: flex; flex-wrap: wrap; gap: 2px;
   align-items: center; justify-content: flex-end;
-  flex-shrink: 0; max-width: 44%;
+  flex-shrink: 0; max-width: 42%;
 }
+
+/* ── Compact req chips ─────────────────────── */
 .req-chip {
-  display: inline-flex; align-items: center; gap: 2px;
-  background: rgba(0,0,0,.3); border-radius: 20px;
-  padding: 2px 6px 2px 2px; font-size: 11px; color: var(--text-dim);
+  position: relative; display: inline-block;
+  width: 30px; height: 30px;
+  vertical-align: middle; margin: 1px; flex-shrink: 0;
 }
-.req-chip img { width: 32px; height: 32px; object-fit: contain; border-radius: 6px; }
-.req-icon-ph { width: 32px; height: 32px; background: var(--border); border-radius: 6px; display: inline-flex; align-items: center; justify-content: center; font-size: 8px; color: var(--text-dim); flex-shrink: 0; }
+.req-chip img {
+  width: 26px; height: 26px; object-fit: contain;
+  border-radius: 5px; border: 1px solid var(--border); display: block;
+}
+.req-chip-ph {
+  width: 26px; height: 26px; background: var(--border);
+  border-radius: 5px; display: flex; align-items: center;
+  justify-content: center; font-size: 7px; color: var(--text-dim);
+}
+.req-chip-qty {
+  position: absolute; bottom: 0; right: -1px;
+  background: var(--accent2); color: #000; font-size: 7px; font-weight: 700;
+  padding: 0 2px; border-radius: 3px; line-height: 11px;
+  pointer-events: none; font-style: normal;
+}
+.req-chip-lv {
+  position: absolute; top: 0; left: -1px;
+  background: rgba(74,144,226,0.9); color: #fff; font-size: 7px; font-weight: 700;
+  padding: 0 2px; border-radius: 3px; line-height: 11px;
+  pointer-events: none; font-style: normal;
+}
 .quest-item.done .req-chip { opacity: .5; }
 
 /* ── Items needed ──────────────────────────── */
@@ -345,7 +379,7 @@ body {
 <script>
 let DATA = null;
 let currentArea = null;
-let currentTaskIndex = 0;
+let completedTaskIds = new Set();
 let itemViewCompact = true;
 
 function imgUrl(url) {
@@ -357,11 +391,131 @@ function imgUrl(url) {
 // ── State ─────────────────────────────────────────────────────────
 function saveState() {
   const saved = JSON.parse(localStorage.getItem('mmh_progress') || '{}');
-  if (currentArea) saved[currentArea.name] = currentTaskIndex;
+  if (currentArea) saved[currentArea.name] = [...completedTaskIds];
   localStorage.setItem('mmh_progress', JSON.stringify(saved));
 }
-function loadTaskIndex(areaName) {
-  return JSON.parse(localStorage.getItem('mmh_progress') || '{}')[areaName] ?? 0;
+
+function loadCompletedIds(area) {
+  const val = JSON.parse(localStorage.getItem('mmh_progress') || '{}')[area.name];
+  if (!val) return new Set();
+  // Migration: if stored as a number, convert to first N task IDs
+  if (typeof val === 'number') return new Set(area.tasks.slice(0, val).map(t => t.id));
+  return new Set(val);
+}
+
+// ── Task availability ─────────────────────────────────────────────
+function isTaskAvailable(task, inArea) {
+  const parents = (task.parents || []).filter(p => inArea.has(p));
+  return parents.every(p => completedTaskIds.has(p));
+}
+
+// ── Toggle task completion ────────────────────────────────────────
+function toggleTask(taskId) {
+  const tasks = currentArea.tasks;
+  const inArea = new Set(tasks.map(t => t.id));
+
+  if (completedTaskIds.has(taskId)) {
+    // Undo: cascade-remove this task and all dependents
+    const toRemove = new Set([taskId]);
+    let changed = true;
+    while (changed) {
+      changed = false;
+      for (const t of tasks) {
+        if (!toRemove.has(t.id) && completedTaskIds.has(t.id)) {
+          const parents = (t.parents || []).filter(p => inArea.has(p));
+          if (parents.some(p => toRemove.has(p))) {
+            toRemove.add(t.id);
+            changed = true;
+          }
+        }
+      }
+    }
+    for (const id of toRemove) completedTaskIds.delete(id);
+  } else {
+    const task = tasks.find(t => t.id === taskId);
+    if (!task || !isTaskAvailable(task, inArea)) return; // locked
+    completedTaskIds.add(taskId);
+  }
+
+  saveState();
+  history.replaceState(null, '', `#${areaToSlug(currentArea)}`);
+  render();
+}
+
+// ── Branch layout ─────────────────────────────────────────────────
+function computeSegments(tasks) {
+  const inArea = new Set(tasks.map(t => t.id));
+  const taskById = Object.fromEntries(tasks.map(t => [t.id, t]));
+
+  // Compute full descendant set for a task (following children within area)
+  const descCache = {};
+  function getDescendants(taskId) {
+    if (descCache[taskId]) return descCache[taskId];
+    const visited = new Set();
+    const q = [taskId];
+    while (q.length) {
+      const cur = q.shift();
+      if (visited.has(cur)) continue;
+      visited.add(cur);
+      for (const ch of (taskById[cur]?.children || [])) {
+        if (inArea.has(ch)) q.push(ch);
+      }
+    }
+    descCache[taskId] = visited;
+    return visited;
+  }
+
+  const segments = [];
+  const processedIds = new Set();
+
+  for (let i = 0; i < tasks.length; i++) {
+    const task = tasks[i];
+    if (processedIds.has(task.id)) continue;
+
+    const forwardChildren = (task.children || []).filter(c => inArea.has(c));
+
+    if (forwardChildren.length >= 2) {
+      segments.push({ type: 'linear', task });
+      processedIds.add(task.id);
+
+      // Compute descendant sets for each branch child
+      const childDescs = forwardChildren.map(c => getDescendants(c));
+
+      // Merge points: reachable from ALL branch children
+      const mergeIds = new Set([...childDescs[0]].filter(id =>
+        childDescs.every(ds => ds.has(id))
+      ));
+
+      // Exclusive tasks per branch (not in merge set)
+      const exclusiveSets = childDescs.map(ds =>
+        new Set([...ds].filter(id => !mergeIds.has(id)))
+      );
+
+      // Collect ordered tasks for each column from the tasks array
+      const colArrays = exclusiveSets.map(() => []);
+      for (let j = i + 1; j < tasks.length; j++) {
+        const t = tasks[j];
+        if (mergeIds.has(t.id)) break;
+        if (processedIds.has(t.id)) continue;
+        for (let ci = 0; ci < exclusiveSets.length; ci++) {
+          if (exclusiveSets[ci].has(t.id)) {
+            colArrays[ci].push(t);
+            processedIds.add(t.id);
+            break;
+          }
+        }
+      }
+
+      if (colArrays.some(col => col.length > 0)) {
+        segments.push({ type: 'branch', columns: colArrays });
+      }
+    } else {
+      segments.push({ type: 'linear', task });
+      processedIds.add(task.id);
+    }
+  }
+
+  return segments;
 }
 
 // ── URL routing ───────────────────────────────────────────────────
@@ -377,27 +531,13 @@ function findAreaBySlug(slug) {
   );
 }
 
-function getHashParams() {
-  const h = location.hash.slice(1);
-  if (!h) return null;
-  const [slug, idx] = h.split('/');
-  return { slug, inGameIndex: idx !== undefined ? parseInt(idx, 10) : null };
-}
-
 function handleHash() {
   if (!DATA) return;
-  const p = getHashParams();
-  if (p && p.slug) {
-    const area = findAreaBySlug(p.slug);
-    if (area) {
-      let arrayPos = loadTaskIndex(area.name);
-      if (p.inGameIndex !== null && !isNaN(p.inGameIndex)) {
-        const found = area.tasks.findIndex(t => t.index === p.inGameIndex);
-        if (found >= 0) arrayPos = found;
-      }
-      _openArea(area, arrayPos);
-      return;
-    }
+  const h = location.hash.slice(1);
+  if (h) {
+    const slug = h.split('/')[0];
+    const area = findAreaBySlug(slug);
+    if (area) { _openArea(area); return; }
   }
   showAreaList();
 }
@@ -420,7 +560,9 @@ function showAreaList() {
 
   let firstInProgress = null;
   DATA.areas.filter(a => a.tasks.length > 0).forEach(area => {
-    const done = saved[area.name] ?? 0;
+    const rawVal = saved[area.name];
+    const done = typeof rawVal === 'number' ? rawVal
+      : Array.isArray(rawVal) ? rawVal.length : 0;
     const total = area.tasks.length;
     const pct = total > 0 ? Math.round(done / total * 100) : 0;
     const isDone = done >= total && total > 0;
@@ -446,14 +588,13 @@ function showAreaList() {
 
 // ── Screen: Area Detail ───────────────────────────────────────────
 function openArea(area) {
-  const arrayPos = loadTaskIndex(area.name);
-  history.pushState(null, '', `#${areaToSlug(area)}/${area.tasks[arrayPos]?.index ?? arrayPos}`);
-  _openArea(area, arrayPos);
+  history.pushState(null, '', `#${areaToSlug(area)}`);
+  _openArea(area);
 }
 
-function _openArea(area, arrayPos) {
+function _openArea(area) {
   currentArea = area;
-  currentTaskIndex = arrayPos;
+  completedTaskIds = loadCompletedIds(area);
   showScreen('screenArea');
   document.getElementById('areaTitle').textContent = area.nameKo || area.name;
   render();
@@ -462,92 +603,104 @@ function _openArea(area, arrayPos) {
 function render() {
   if (!currentArea) return;
   const tasks = currentArea.tasks;
-  const done = currentTaskIndex;
+  const done = completedTaskIds.size;
   const total = tasks.length;
   const pct = total > 0 ? Math.round(done / total * 100) : 0;
 
   document.getElementById('areaSub').textContent = `${currentArea.name} · ${done}/${total} 완료`;
-  document.getElementById('progressLabel').textContent = '진행도';
   document.getElementById('progressPct').textContent = `${pct}%`;
   document.getElementById('progressFill').style.width = `${pct}%`;
 
-  renderQuests(tasks, done);
-  renderItems(tasks, done);
-  renderRewards(tasks, done);
+  renderQuests(tasks);
+  renderItems(tasks);
+  renderRewards(tasks);
 }
 
-function renderQuests(tasks, done) {
-  const el = document.getElementById('questList');
-  const idToIndex = {};
-  for (const t of tasks) idToIndex[t.id] = t.index;
+// ── Render quest item HTML ────────────────────────────────────────
+function renderQuestItem(task, inArea) {
+  const isDone = completedTaskIds.has(task.id);
+  const available = isTaskAvailable(task, inArea);
+  const cls = isDone ? 'done' : available ? 'current' : 'locked';
 
-  el.innerHTML = tasks.map((task, i) => {
-    const isDone = i < done;
-    const isCurrent = i === done;
-    const cls = isDone ? 'done' : isCurrent ? 'current' : '';
-
-    const reqs = task.requirements.map(r => {
-      const item = DATA.items[r.name] || {};
-      const name = item.name || r.name;
-      const url = imgUrl(item.imageUrl);
-      const lv = item.level || 1;
-      const tip = `${name} (L${lv}) ×${r.amount}`;
-      const icon = url
-        ? `<img src="${url}" alt="${name}" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='inline-flex'">`
-        : '';
-      const ph = `<span class="req-icon-ph" style="${url ? 'display:none' : ''}">${r.name.slice(0,2)}</span>`;
-      return `<span class="req-chip" title="${tip}">${icon}${ph}×${r.amount}</span>`;
-    }).join('');
-
-    const xp = task.rewards?.xp || 0;
-    const rewardItem = task.rewards?.item;
-    const rewardItemName = rewardItem ? (DATA.items[rewardItem]?.name || rewardItem) : '';
-
-    return `<div class="quest-item ${cls}" onclick="setCurrentTask(${i})">
-      <div class="quest-left">
-        <div class="quest-header">
-          <span class="quest-idx">${task.index}</span>
-          <span class="quest-desc">${task.desc}</span>
-          ${isCurrent ? '<span class="current-tag">현재</span>' : ''}
-        </div>
-        ${xp || rewardItemName ? `<div class="quest-xp">${xp ? `⭐ ${xp} XP` : ''}${xp && rewardItemName ? ' · ' : ''}${rewardItemName ? `🎁 ${rewardItemName}` : ''}</div>` : ''}
-        ${(() => {
-          const children = (task.children || []).map(id => idToIndex[id]).filter(n => n !== undefined).sort((a,b) => a-b);
-          if (children.length < 2) return '';
-          return `<div class="quest-unlock">🔓 <span>${children.join(', ')}</span></div>`;
-        })()}
-      </div>
-      ${reqs ? `<div class="quest-reqs">${reqs}</div>` : ''}
-    </div>`;
+  const reqs = task.requirements.map(r => {
+    const item = DATA.items[r.name] || {};
+    const name = item.name || r.name;
+    const url = imgUrl(item.imageUrl);
+    const lv = item.level || 1;
+    const tip = `${name} (L${lv}) ×${r.amount}`;
+    const icon = url
+      ? `<img src="${url}" alt="${name}" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">`
+      : '';
+    const ph = `<div class="req-chip-ph" style="${url ? 'display:none' : ''}">${r.name.slice(0,2)}</div>`;
+    const lvBadge = lv > 1 ? `<i class="req-chip-lv">L${lv}</i>` : '';
+    return `<span class="req-chip" title="${tip}">${icon}${ph}<i class="req-chip-qty">×${r.amount}</i>${lvBadge}</span>`;
   }).join('');
 
-  // Scroll current task to ~25% from top
+  const xp = task.rewards?.xp || 0;
+  const idToIndex = Object.fromEntries(currentArea.tasks.map(t => [t.id, t.index]));
+  const branchIndices = (task.children || [])
+    .filter(c => inArea.has(c))
+    .map(c => idToIndex[c])
+    .filter(n => n !== undefined)
+    .sort((a, b) => a - b);
+
+  return `<div class="quest-item ${cls}" onclick="toggleTask('${task.id}')">
+    <div class="quest-left">
+      <div class="quest-header">
+        <span class="quest-idx">${task.index}</span>
+        <span class="quest-desc" title="${task.desc}">${task.desc}</span>
+        ${isDone ? '<span class="done-tag">완료</span>' : ''}
+      </div>
+      ${xp ? `<div class="quest-xp">⭐ ${xp} XP</div>` : ''}
+      ${branchIndices.length >= 2 ? `<div class="quest-unlock">🔓 <span>${branchIndices.join(', ')}</span></div>` : ''}
+    </div>
+    ${reqs ? `<div class="quest-reqs">${reqs}</div>` : ''}
+  </div>`;
+}
+
+function renderSegments(segments, inArea) {
+  return segments.map(seg => {
+    if (seg.type === 'linear') {
+      return renderQuestItem(seg.task, inArea);
+    }
+    // Branch: side-by-side columns
+    const cols = seg.columns.map(colTasks => {
+      const inner = computeSegments(colTasks);
+      return `<div class="branch-col">${renderSegments(inner, inArea)}</div>`;
+    }).join('');
+    return `<div class="branch-cols">${cols}</div>`;
+  }).join('');
+}
+
+function renderQuests(tasks) {
+  const el = document.getElementById('questList');
+  const inArea = new Set(tasks.map(t => t.id));
+  const segments = computeSegments(tasks);
+  el.innerHTML = renderSegments(segments, inArea);
+
+  // Scroll first available (current) task to ~25% from top
   requestAnimationFrame(() => {
     const cur = el.querySelector('.quest-item.current');
     if (!cur) return;
-    const offset = cur.offsetTop - el.clientHeight * 0.25;
-    el.scrollTop = Math.max(0, offset);
+    el.scrollTop = Math.max(0, cur.offsetTop - el.clientHeight * 0.25);
   });
 }
 
-function renderItems(tasks, done) {
+function renderItems(tasks) {
   const el = document.getElementById('itemsList');
-  const remaining = tasks.slice(done);
+  const remaining = tasks.filter(t => !completedTaskIds.has(t.id));
   const totals = {};
   for (const task of remaining)
     for (const req of task.requirements)
       totals[req.name] = (totals[req.name] || 0) + req.amount;
 
-  // Sort: group by chainName alphabetically, within chain by level desc
   const entries = Object.entries(totals).sort((a, b) => {
     const ia = DATA.items[a[0]] || {}, ib = DATA.items[b[0]] || {};
     const ca = ia.chainName || a[0], cb = ib.chainName || b[0];
     if (ca !== cb) return ca.localeCompare(cb);
     return (ib.level || 1) - (ia.level || 1);
   });
-  if (!entries.length) {
-    el.innerHTML = '<div class="empty">없음 🎉</div>'; return;
-  }
+  if (!entries.length) { el.innerHTML = '<div class="empty">없음 🎉</div>'; return; }
 
   if (itemViewCompact) {
     el.innerHTML = `<div class="items-compact-grid">${entries.map(([id, qty]) => {
@@ -586,12 +739,12 @@ function renderItems(tasks, done) {
 function toggleItemView() {
   itemViewCompact = !itemViewCompact;
   document.getElementById('itemViewToggle').textContent = itemViewCompact ? '목록' : '아이콘';
-  if (currentArea) renderItems(currentArea.tasks, currentTaskIndex);
+  if (currentArea) renderItems(currentArea.tasks);
 }
 
-function renderRewards(tasks, done) {
+function renderRewards(tasks) {
   const el = document.getElementById('rewardsList');
-  const remaining = tasks.slice(done);
+  const remaining = tasks.filter(t => !completedTaskIds.has(t.id));
   let totalXP = 0;
   const items = {};
   for (const task of remaining) {
@@ -605,7 +758,6 @@ function renderRewards(tasks, done) {
   }
 
   const chips = [];
-
   if (totalXP) {
     const label = totalXP >= 1000 ? `${(totalXP/1000).toFixed(1).replace(/\.0$/,'')}k` : String(totalXP);
     chips.push(`<div class="item-chip" title="경험치 ${totalXP.toLocaleString()} XP">
@@ -613,7 +765,6 @@ function renderRewards(tasks, done) {
       <span class="item-chip-qty">${label}</span>
     </div>`);
   }
-
   for (const [id, cnt] of Object.entries(items)) {
     const item = DATA.items[id] || {};
     const name = item.name || id;
@@ -626,17 +777,7 @@ function renderRewards(tasks, done) {
     const ph = `<div class="item-chip-ph" title="${tip}" style="${url ? 'display:none' : ''}">${id.slice(0,3)}</div>`;
     chips.push(`<div class="item-chip">${icon}${ph}${cnt > 1 ? `<span class="item-chip-qty">×${cnt}</span>` : ''}<span class="item-chip-lv">L${lv}</span></div>`);
   }
-
   el.innerHTML = `<div class="items-compact-grid">${chips.join('')}</div>`;
-}
-
-// ── Interactions ──────────────────────────────────────────────────
-function setCurrentTask(index) {
-  currentTaskIndex = index;
-  saveState();
-  const inGameIdx = currentArea.tasks[index]?.index ?? index;
-  history.replaceState(null, '', `#${areaToSlug(currentArea)}/${inGameIdx}`);
-  render();
 }
 
 function showScreen(id) {
