@@ -224,7 +224,7 @@ body {
   transition: flex-basis 0.35s ease, flex-grow 0.35s ease;
   overflow: hidden;
 }
-/* Done branch: no box at all — just a thin vertical line */
+/* Done branch (partial: other cols still active) — thin vertical line only */
 .branch-col.branch-done {
   flex: 0 0 3px;
   min-width: 3px;
@@ -233,6 +233,10 @@ body {
   border-radius: 0;
   background: none;
   overflow: visible;
+}
+/* All-done branch (every column finished) — keep full width, show content */
+.branch-col.branch-all-done {
+  opacity: 0.5;
 }
 /* Vertical connector line running the full height of each branch column */
 .branch-col::before {
@@ -254,6 +258,16 @@ body {
   background: linear-gradient(to bottom,
     transparent 0%, rgba(116,198,157,0.55) 4%,
     rgba(116,198,157,0.55) 96%, transparent 100%);
+}
+/* All-done branch line: green tint */
+.branch-col.branch-all-done::before {
+  background: linear-gradient(to bottom,
+    transparent 0%, rgba(116,198,157,0.35) 12%,
+    rgba(116,198,157,0.35) 88%, transparent 100%);
+}
+/* Column containing inner branches: suppress ::before (SVG handles connections) */
+.branch-col.has-inner-branch::before {
+  display: none;
 }
 .branch-col .quest-item {
   position: relative;
@@ -391,7 +405,7 @@ body {
       <h1>🏠 Merge Mansion Helper</h1>
       <div class="sub">지역을 선택하세요</div>
     </div>
-    <span class="ver-badge">v250430.6</span>
+    <span class="ver-badge">v250430.7</span>
   </div>
   <div id="areaList"></div>
   <div class="footer">Data sourced from <a href="https://merge-mansion.fandom.com/wiki/Areas" target="_blank">Merge Mansion Wiki</a> (CC-BY-SA)</div>
@@ -405,7 +419,7 @@ body {
       <h1 id="areaTitle"></h1>
       <div class="sub" id="areaSub"></div>
     </div>
-    <span class="ver-badge">v250430.6</span>
+    <span class="ver-badge">v250430.7</span>
   </div>
 
   <div class="progress-bar">
@@ -737,19 +751,37 @@ function renderSegments(segments, inArea) {
   return segments.map(seg => {
     if (seg.type === 'linear') return renderQuestItem(seg.task, inArea);
 
-    // Branch section — CSS handles widths automatically:
-    //   active → flex: 1 1 0  (equal share of all remaining space)
-    //   done   → flex: 0 0 3px  (pure vertical line, no box, no content)
     const id = `bc${++_bcId}`;
 
-    const colsHtml = seg.columns.map(colTasks => {
+    // Sort columns: done (thin-line) go LEFTMOST, most-active go RIGHTMOST
+    const remaining = col => col.filter(t => !completedTaskIds.has(t.id)).length;
+    const sorted = [...seg.columns].sort((a, b) => remaining(a) - remaining(b));
+
+    const allDone = sorted.every(col =>
+      col.length === 0 || col.every(t => completedTaskIds.has(t.id))
+    );
+
+    const colsHtml = sorted.map(colTasks => {
       const done = colTasks.length === 0 || colTasks.every(t => completedTaskIds.has(t.id));
-      // Done branch: render only the thin line strip — no inner content
-      if (done) return `<div class="branch-col branch-done"></div>`;
+
+      // Partial-done column: collapse to thin green line (no content needed)
+      if (done && !allDone) return `<div class="branch-col branch-done"></div>`;
+
+      // Render content (normal for active; all-done gets faded styling)
       const innerSegs = computeSegments(colTasks);
       const inner = renderSegments(innerSegs, inArea);
-      return `<div class="branch-col">${inner}</div>`;
+      const hasInnerBranch = innerSegs.some(s => s.type === 'branch');
+      const cls = ['branch-col',
+        done ? 'branch-all-done' : '',
+        hasInnerBranch ? 'has-inner-branch' : ''
+      ].filter(Boolean).join(' ');
+      return `<div class="${cls}">${inner}</div>`;
     }).join('');
+
+    // All branches done → skip split/merge SVG gaps (nothing to visually connect)
+    if (allDone) {
+      return `<div class="branch-cols" id="${id}">${colsHtml}</div>`;
+    }
 
     return [
       `<div class="branch-split-gap" data-bc="${id}"><svg></svg></div>`,
