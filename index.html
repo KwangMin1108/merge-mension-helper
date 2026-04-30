@@ -227,7 +227,7 @@ body {
   transition: flex-basis 0.35s ease, flex-grow 0.35s ease;
   overflow: hidden;
 }
-/* Done branch (some cols still active) — 3px thin line, content clipped */
+/* Done branch (some cols still active) — 3px thin line, natural content height */
 .branch-col.branch-done {
   flex: 0 0 3px;
   min-width: 3px;
@@ -235,7 +235,8 @@ body {
   border: none;
   border-radius: 0;
   background: none;
-  overflow: hidden; /* clip task cards; height comes from rendered content */
+  overflow: hidden;        /* clip task cards to 3px width */
+  align-self: flex-start;  /* height = own tasks only; below is transparent empty space */
 }
 /* Vertical connector line running the full height of each active branch column */
 .branch-col::before {
@@ -250,16 +251,13 @@ body {
   pointer-events: none;
   z-index: 0;
 }
-/* Done branch line: fills 3px width, fades out after last task (--fade-stop set by JS) */
+/* Done branch line: fills 3px width, spans exactly the done tasks' height */
 .branch-col.branch-done::before {
   left: 0;
   width: 100%;
   background: linear-gradient(to bottom,
-    transparent 0%,
-    rgba(116,198,157,0.55) 4%,
-    rgba(116,198,157,0.55) var(--fade-stop, 70%),
-    transparent calc(var(--fade-stop, 70%) + 6%)
-  );
+    transparent 0%, rgba(116,198,157,0.55) 4%,
+    rgba(116,198,157,0.55) 96%, transparent 100%);
 }
 /* Column containing inner branches: suppress ::before (SVG handles connections) */
 .branch-col.has-inner-branch::before { display: none; }
@@ -412,7 +410,7 @@ body {
       <h1>🏠 Merge Mansion Helper</h1>
       <div class="sub">지역을 선택하세요</div>
     </div>
-    <span class="ver-badge">v250430.8</span>
+    <span class="ver-badge">v250430.9</span>
   </div>
   <div id="areaList"></div>
   <div class="footer">Data sourced from <a href="https://merge-mansion.fandom.com/wiki/Areas" target="_blank">Merge Mansion Wiki</a> (CC-BY-SA)</div>
@@ -426,7 +424,7 @@ body {
       <h1 id="areaTitle"></h1>
       <div class="sub" id="areaSub"></div>
     </div>
-    <span class="ver-badge">v250430.8</span>
+    <span class="ver-badge">v250430.9</span>
   </div>
 
   <div class="progress-bar">
@@ -842,20 +840,6 @@ function drawAllConnectors(containerEl) {
   containerEl.querySelectorAll('.branch-merge-gap').forEach(g => drawConnector(g, true));
 }
 
-// Compute --fade-stop for each done column so the green line fades out
-// exactly at the bottom of the last task card, not at the column's full height.
-function adjustDoneColumns(containerEl) {
-  containerEl.querySelectorAll('.branch-col.branch-done').forEach(col => {
-    const tasks = col.querySelectorAll('.quest-item');
-    if (!tasks.length) return;
-    const last = tasks[tasks.length - 1];
-    const colRect = col.getBoundingClientRect();
-    const colH = colRect.height;
-    if (colH < 1) return;
-    const fadeAt = Math.min(98, ((last.getBoundingClientRect().bottom - colRect.top + 4) / colH) * 100);
-    col.style.setProperty('--fade-stop', `${fadeAt.toFixed(1)}%`);
-  });
-}
 
 function renderQuests(tasks) {
   const el = document.getElementById('questList');
@@ -866,7 +850,6 @@ function renderQuests(tasks) {
 
   requestAnimationFrame(() => {
     drawAllConnectors(el);
-    adjustDoneColumns(el);
     const cur = el.querySelector('.quest-item.current');
     if (cur) el.scrollTop = Math.max(0, cur.offsetTop - el.clientHeight * 0.25);
   });
