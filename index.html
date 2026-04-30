@@ -211,16 +211,60 @@ body {
 
 
 /* ── Branch layout ─────────────────────────── */
-.branch-cols { display: flex; gap: 4px; margin-bottom: 5px; }
+.branch-cols { display: flex; gap: 6px; }
 .branch-col {
-  flex: 1; min-width: 0;
-  border: 1px solid rgba(30,58,95,0.8);
+  flex-shrink: 1;
+  flex-basis: 0;
+  min-width: 0;
+  border: 1px solid rgba(30,58,95,0.85);
   border-radius: var(--radius);
   padding: 4px;
   background: rgba(255,255,255,0.02);
+  position: relative;
+  transition: flex-grow 0.35s ease;
 }
-.branch-col .quest-item { margin-bottom: 4px; }
+/* Vertical connector line running the full height of each branch column */
+.branch-col::before {
+  content: '';
+  position: absolute;
+  left: calc(50% - 1px);
+  top: 0; bottom: 0;
+  width: 2px;
+  background: linear-gradient(to bottom,
+    transparent 0%, rgba(74,144,226,0.45) 12%,
+    rgba(74,144,226,0.45) 88%, transparent 100%);
+  pointer-events: none;
+  z-index: 0;
+}
+.branch-col.branch-done::before {
+  background: linear-gradient(to bottom,
+    transparent 0%, rgba(116,198,157,0.35) 12%,
+    rgba(116,198,157,0.35) 88%, transparent 100%);
+}
+.branch-col .quest-item {
+  position: relative;
+  z-index: 1;
+  margin-bottom: 4px;
+}
 .branch-col .quest-item:last-child { margin-bottom: 0; }
+
+/* Branch connector gaps — hold the split/merge SVG curves */
+.branch-split-gap,
+.branch-merge-gap {
+  position: relative;
+  width: 100%;
+  flex-shrink: 0;
+}
+.branch-split-gap { height: 36px; }
+.branch-merge-gap { height: 52px; }
+.branch-split-gap svg,
+.branch-merge-gap svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
 
 /* ── Quest items ───────────────────────────── */
 .quest-item {
@@ -658,31 +702,104 @@ function renderQuestItem(task, inArea) {
   </div>`;
 }
 
+// ── Dynamic column flex widths ────────────────────────────────────
+// Done branch → 1 unit; active branches share remaining units equally.
+// Base: each branch gets 4 units (N branches = N*4 total).
+function computeColumnFlexes(colTaskArrays) {
+  const N = colTaskArrays.length;
+  const totalUnits = N * 4;
+  const doneMask = colTaskArrays.map(col =>
+    col.length === 0 || col.every(t => completedTaskIds.has(t.id))
+  );
+  const doneCount = doneMask.filter(Boolean).length;
+  const activeCount = N - doneCount;
+  const activeUnits = activeCount > 0
+    ? (totalUnits - doneCount) / activeCount
+    : totalUnits / N;
+  return doneMask.map(done => done ? 1 : activeUnits);
+}
+
+let _bcId = 0; // unique ID counter for branch sections; reset each render
+
 function renderSegments(segments, inArea) {
   return segments.map(seg => {
-    if (seg.type === 'linear') {
-      return renderQuestItem(seg.task, inArea);
-    }
-    // Branch: side-by-side columns
-    const cols = seg.columns.map(colTasks => {
-      const inner = computeSegments(colTasks);
-      return `<div class="branch-col">${renderSegments(inner, inArea)}</div>`;
+    if (seg.type === 'linear') return renderQuestItem(seg.task, inArea);
+
+    // Branch section
+    const id = `bc${++_bcId}`;
+    const flexes = computeColumnFlexes(seg.columns);
+    const doneMask = seg.columns.map(col =>
+      col.length === 0 || col.every(t => completedTaskIds.has(t.id))
+    );
+
+    const colsHtml = seg.columns.map((colTasks, ci) => {
+      const innerSegs = computeSegments(colTasks);
+      const inner = renderSegments(innerSegs, inArea);
+      const cls = doneMask[ci] ? 'branch-col branch-done' : 'branch-col';
+      return `<div class="${cls}" style="flex-grow:${flexes[ci]}">${inner}</div>`;
     }).join('');
-    return `<div class="branch-cols">${cols}</div>`;
+
+    return [
+      `<div class="branch-split-gap" data-bc="${id}"><svg></svg></div>`,
+      `<div class="branch-cols" id="${id}">${colsHtml}</div>`,
+      `<div class="branch-merge-gap" data-bc="${id}"><svg></svg></div>`
+    ].join('');
   }).join('');
+}
+
+// ── SVG connector drawing ─────────────────────────────────────────
+function drawConnector(gapEl, isMerge) {
+  const bcEl = document.getElementById(gapEl.dataset.bc);
+  if (!bcEl) return;
+  const cols = [...bcEl.querySelectorAll(':scope > .branch-col')];
+  const gRect = gapEl.getBoundingClientRect();
+  const w = gRect.width, h = gapEl.offsetHeight;
+  if (w < 2 || h < 2 || cols.length === 0) return;
+
+  // Column center x values relative to the gap element
+  const centers = cols.map(col => {
+    const r = col.getBoundingClientRect();
+    return (r.left + r.right) / 2 - gRect.left;
+  });
+  const cx = w / 2; // converge/spread point (center of the full width)
+
+  const svg = gapEl.querySelector('svg');
+  svg.setAttribute('viewBox', `0 0 ${w} ${h}`);
+
+  svg.innerHTML = cols.map((col, i) => {
+    const done = col.classList.contains('branch-done');
+    const stroke = done ? 'rgba(116,198,157,0.6)' : 'rgba(74,144,226,0.7)';
+    const colX = centers[i];
+
+    // Bezier control points sit at 55% / 45% for a smooth S-curve
+    let d;
+    if (isMerge) {
+      // top: each column center → bottom: shared center
+      d = `M${colX},0 C${colX},${h * 0.55} ${cx},${h * 0.45} ${cx},${h}`;
+    } else {
+      // top: shared center → bottom: each column center
+      d = `M${cx},0 C${cx},${h * 0.55} ${colX},${h * 0.45} ${colX},${h}`;
+    }
+    return `<path d="${d}" stroke="${stroke}" stroke-width="2" fill="none"/>`;
+  }).join('');
+}
+
+function drawAllConnectors(containerEl) {
+  containerEl.querySelectorAll('.branch-split-gap').forEach(g => drawConnector(g, false));
+  containerEl.querySelectorAll('.branch-merge-gap').forEach(g => drawConnector(g, true));
 }
 
 function renderQuests(tasks) {
   const el = document.getElementById('questList');
   const inArea = new Set(tasks.map(t => t.id));
+  _bcId = 0;
   const segments = computeSegments(tasks);
   el.innerHTML = renderSegments(segments, inArea);
 
-  // Scroll first available (current) task to ~25% from top
   requestAnimationFrame(() => {
+    drawAllConnectors(el);
     const cur = el.querySelector('.quest-item.current');
-    if (!cur) return;
-    el.scrollTop = Math.max(0, cur.offsetTop - el.clientHeight * 0.25);
+    if (cur) el.scrollTop = Math.max(0, cur.offsetTop - el.clientHeight * 0.25);
   });
 }
 
