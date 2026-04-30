@@ -227,26 +227,31 @@ body {
   transition: flex-basis 0.35s ease, flex-grow 0.35s ease;
   overflow: hidden;
 }
-/* Done branch (some cols still active) — 3px thin line, natural content height */
+/* Done branch — thin strip, FULL HEIGHT (matches active column height).
+   Top portion (done tasks area): green. Below that (connecting to merge): blue.
+   --done-stop is set by adjustDoneColumns() after render. */
 .branch-col.branch-done {
-  flex: 0 0 3px;
-  min-width: 3px;
+  flex: 0 0 4px;
+  min-width: 4px;
   padding: 0;
   border: none;
   border-radius: 0;
   background: none;
-  overflow: hidden;        /* clip task cards to 3px width */
-  align-self: flex-start;  /* height = own tasks only; below is transparent empty space */
+  overflow: hidden; /* clip task cards */
 }
-/* Done branch line: thin green strip spanning the done tasks' height */
 .branch-col.branch-done::before {
   content: '';
   position: absolute;
   left: 0; top: 0; bottom: 0;
   width: 100%;
   background: linear-gradient(to bottom,
-    transparent 0%, rgba(116,198,157,0.55) 4%,
-    rgba(116,198,157,0.55) 96%, transparent 100%);
+    transparent 0%,
+    rgba(116,198,157,0.55) 3%,
+    rgba(116,198,157,0.55) var(--done-stop, 40%),
+    rgba(74,144,226,0.50)  var(--done-stop, 40%),
+    rgba(74,144,226,0.50)  97%,
+    transparent 100%
+  );
   pointer-events: none;
   z-index: 0;
 }
@@ -400,7 +405,7 @@ body {
       <h1>🏠 Merge Mansion Helper</h1>
       <div class="sub">지역을 선택하세요</div>
     </div>
-    <span class="ver-badge">v250501.1</span>
+    <span class="ver-badge">v250501.2</span>
   </div>
   <div id="areaList"></div>
   <div class="footer">Data sourced from <a href="https://merge-mansion.fandom.com/wiki/Areas" target="_blank">Merge Mansion Wiki</a> (CC-BY-SA)</div>
@@ -414,7 +419,7 @@ body {
       <h1 id="areaTitle"></h1>
       <div class="sub" id="areaSub"></div>
     </div>
-    <span class="ver-badge">v250501.1</span>
+    <span class="ver-badge">v250501.2</span>
   </div>
 
   <div class="progress-bar">
@@ -805,8 +810,7 @@ function drawConnector(gapEl, isMerge) {
   svg.setAttribute('viewBox', `0 0 ${w} ${h}`);
 
   svg.innerHTML = cols.map((col, i) => {
-    const done = col.classList.contains('branch-done');
-    const stroke = done ? 'rgba(116,198,157,0.6)' : 'rgba(74,144,226,0.7)';
+    const stroke = 'rgba(74,144,226,0.7)'; // all connectors blue; strip ::before shows green/blue
     const colX = centers[i];
 
     // Bezier control points sit at 55% / 45% for a smooth S-curve
@@ -827,6 +831,20 @@ function drawAllConnectors(containerEl) {
   containerEl.querySelectorAll('.branch-merge-gap').forEach(g => drawConnector(g, true));
 }
 
+// For each done column, calculate --done-stop: the % at which the last task ends.
+// Above --done-stop: green (done tasks). Below: blue (connecting flow to merge point).
+function adjustDoneColumns(containerEl) {
+  containerEl.querySelectorAll('.branch-col.branch-done').forEach(col => {
+    const tasks = col.querySelectorAll('.quest-item');
+    if (!tasks.length) { col.style.setProperty('--done-stop', '0%'); return; }
+    const last = tasks[tasks.length - 1];
+    const colH = col.getBoundingClientRect().height;
+    if (colH < 1) return;
+    const pct = Math.min(94, ((last.getBoundingClientRect().bottom - col.getBoundingClientRect().top + 6) / colH) * 100);
+    col.style.setProperty('--done-stop', `${pct.toFixed(1)}%`);
+  });
+}
+
 
 function renderQuests(tasks) {
   const el = document.getElementById('questList');
@@ -837,6 +855,7 @@ function renderQuests(tasks) {
 
   requestAnimationFrame(() => {
     drawAllConnectors(el);
+    adjustDoneColumns(el);
     const cur = el.querySelector('.quest-item.current');
     if (cur) el.scrollTop = Math.max(0, cur.offsetTop - el.clientHeight * 0.25);
   });
