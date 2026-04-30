@@ -238,29 +238,19 @@ body {
   overflow: hidden;        /* clip task cards to 3px width */
   align-self: flex-start;  /* height = own tasks only; below is transparent empty space */
 }
-/* Vertical connector line running the full height of each active branch column */
-.branch-col::before {
+/* Done branch line: thin green strip spanning the done tasks' height */
+.branch-col.branch-done::before {
   content: '';
   position: absolute;
-  left: calc(50% - 1px);
-  top: 0; bottom: 0;
-  width: 2px;
-  background: linear-gradient(to bottom,
-    transparent 0%, rgba(74,144,226,0.45) 12%,
-    rgba(74,144,226,0.45) 88%, transparent 100%);
-  pointer-events: none;
-  z-index: 0;
-}
-/* Done branch line: fills 3px width, spans exactly the done tasks' height */
-.branch-col.branch-done::before {
-  left: 0;
+  left: 0; top: 0; bottom: 0;
   width: 100%;
   background: linear-gradient(to bottom,
     transparent 0%, rgba(116,198,157,0.55) 4%,
     rgba(116,198,157,0.55) 96%, transparent 100%);
+  pointer-events: none;
+  z-index: 0;
 }
-/* Column containing inner branches: suppress ::before (SVG handles connections) */
-.branch-col.has-inner-branch::before { display: none; }
+/* Active columns: no ::before — SVG connectors handle flow visualization */
 .branch-col .quest-item {
   position: relative;
   z-index: 1;
@@ -410,7 +400,7 @@ body {
       <h1>🏠 Merge Mansion Helper</h1>
       <div class="sub">지역을 선택하세요</div>
     </div>
-    <span class="ver-badge">v250430.9</span>
+    <span class="ver-badge">v250501.1</span>
   </div>
   <div id="areaList"></div>
   <div class="footer">Data sourced from <a href="https://merge-mansion.fandom.com/wiki/Areas" target="_blank">Merge Mansion Wiki</a> (CC-BY-SA)</div>
@@ -424,7 +414,7 @@ body {
       <h1 id="areaTitle"></h1>
       <div class="sub" id="areaSub"></div>
     </div>
-    <span class="ver-badge">v250430.9</span>
+    <span class="ver-badge">v250501.1</span>
   </div>
 
   <div class="progress-bar">
@@ -784,10 +774,7 @@ function renderSegments(segments, inArea) {
       }
 
       // Active column
-      const hasInnerBranch = innerSegs.some(s => s.type === 'branch');
-      const cls = ['branch-col', hasInnerBranch ? 'has-inner-branch' : '']
-        .filter(Boolean).join(' ');
-      return `<div class="${cls}">${inner}</div>`;
+      return `<div class="branch-col">${inner}</div>`;
     }).join('');
 
     return [
