@@ -271,6 +271,33 @@ body {
   .quest-idx { font-size: 11px; font-weight: 600; }
 }
 
+/* ── Branch overflow (tasks beyond the parallel section) ── */
+/* When one column ends before the other, the longer column's extra
+   tasks render here at full width, with thin strip fillers where
+   the shorter/done columns continue to the merge point. */
+.branch-overflow-wrap {
+  display: flex;
+  gap: 6px; /* matches branch-cols gap */
+}
+.branch-strip-filler {
+  /* Placeholder strip for a done column continuing past its tasks */
+  flex: 0 0 4px;
+  min-width: 4px;
+  position: relative;
+}
+.branch-strip-filler::before {
+  content: '';
+  position: absolute;
+  left: 0; top: 0; bottom: 0;
+  width: 100%;
+  background: linear-gradient(to bottom,
+    rgba(74,144,226,0.50) 0%, rgba(74,144,226,0.50) 96%, transparent 100%);
+}
+.branch-overflow-content {
+  flex: 1;
+  min-width: 0;
+}
+
 /* Branch connector gaps — hold the split/merge SVG curves */
 .branch-split-gap,
 .branch-merge-gap {
@@ -400,7 +427,7 @@ body {
       <h1>🏠 Merge Mansion Helper</h1>
       <div class="sub">지역을 선택하세요</div>
     </div>
-    <span class="ver-badge">v250501.4</span>
+    <span class="ver-badge">v250501.5</span>
   </div>
   <div id="areaList"></div>
   <div class="footer">Data sourced from <a href="https://merge-mansion.fandom.com/wiki/Areas" target="_blank">Merge Mansion Wiki</a> (CC-BY-SA)</div>
@@ -414,7 +441,7 @@ body {
       <h1 id="areaTitle"></h1>
       <div class="sub" id="areaSub"></div>
     </div>
-    <span class="ver-badge">v250501.4</span>
+    <span class="ver-badge">v250501.5</span>
   </div>
 
   <div class="progress-bar">
@@ -748,32 +775,55 @@ function renderSegments(segments, inArea) {
 
     const id = `bc${++_bcId}`;
 
-    // Sort columns: done (thin-line) go LEFTMOST, most-active go RIGHTMOST
+    // Sort: done/fewer remaining → leftmost
     const remaining = col => col.filter(t => !completedTaskIds.has(t.id)).length;
     const sorted = [...seg.columns].sort((a, b) => remaining(a) - remaining(b));
+    const isDone = col => col.length === 0 || col.every(t => completedTaskIds.has(t.id));
 
-    const allDone = sorted.every(col =>
-      col.length === 0 || col.every(t => completedTaskIds.has(t.id))
-    );
-
-    // All branches done → tiny fixed-height band of thin green lines, no SVG gaps
+    const allDone = sorted.every(isDone);
     if (allDone) {
       const thinHtml = sorted.map(() => `<div class="branch-col branch-done"></div>`).join('');
       return `<div class="branch-cols branch-cols-alldone" id="${id}">${thinHtml}</div>`;
     }
 
-    const colsHtml = sorted.map(colTasks => {
-      const done = colTasks.length === 0 || colTasks.every(t => completedTaskIds.has(t.id));
-      const innerSegs = computeSegments(colTasks);
+    // Parallel depth = shortest column length.
+    // All columns render only their first minLen tasks side-by-side.
+    // Longer columns' extra tasks go into the overflow section below, at full width.
+    const minLen = Math.min(...sorted.map(c => c.length));
+
+    // ── Parallel branch-cols ────────────────────────────────────────
+    const colsHtml = sorted.map(col => {
+      const done = isDone(col);
+      const tasks = col.slice(0, minLen);
+      const innerSegs = computeSegments(tasks);
       const inner = renderSegments(innerSegs, inArea);
-      // Done → green→blue thin strip. Active → transparent flex container (equal share).
       if (done) return `<div class="branch-col branch-done">${inner}</div>`;
       return `<div class="branch-col">${inner}</div>`;
     }).join('');
 
+    // ── Overflow section ────────────────────────────────────────────
+    // Each column either:
+    //   > minLen tasks → overflow-content (renders at full remaining width)
+    //   = minLen tasks, done → strip-filler (blue continuation line to merge)
+    //   = minLen tasks, active → '' (overflow-content naturally expands to fill)
+    const overflowParts = sorted.map(col => {
+      if (col.length > minLen) {
+        const overSegs = computeSegments(col.slice(minLen));
+        return `<div class="branch-overflow-content">${renderSegments(overSegs, inArea)}</div>`;
+      }
+      if (isDone(col)) return `<div class="branch-strip-filler"></div>`;
+      return ''; // active shorter col: no filler, overflow-content expands
+    }).join('');
+
+    const hasOverflow = sorted.some(col => col.length > minLen);
+    const overflowHtml = hasOverflow
+      ? `<div class="branch-overflow-wrap" data-bc="${id}">${overflowParts}</div>`
+      : '';
+
     return [
       `<div class="branch-split-gap" data-bc="${id}"><svg></svg></div>`,
       `<div class="branch-cols" id="${id}">${colsHtml}</div>`,
+      overflowHtml,
       `<div class="branch-merge-gap" data-bc="${id}"><svg></svg></div>`
     ].join('');
   }).join('');
@@ -781,34 +831,50 @@ function renderSegments(segments, inArea) {
 
 // ── SVG connector drawing ─────────────────────────────────────────
 function drawConnector(gapEl, isMerge) {
-  const bcEl = document.getElementById(gapEl.dataset.bc);
+  const bcId = gapEl.dataset.bc;
+  const bcEl = document.getElementById(bcId);
   if (!bcEl) return;
-  const cols = [...bcEl.querySelectorAll(':scope > .branch-col')];
   const gRect = gapEl.getBoundingClientRect();
   const w = gRect.width, h = gapEl.offsetHeight;
-  if (w < 2 || h < 2 || cols.length === 0) return;
+  if (w < 2 || h < 2) return;
 
-  // Column center x values relative to the gap element
-  const centers = cols.map(col => {
-    const r = col.getBoundingClientRect();
+  // For merge-gap, prefer the overflow-wrap row (strip-fillers + overflow-content)
+  // so SVG curves start from the correct x-centers after the overflow section.
+  let refs;
+  if (isMerge) {
+    const parent = gapEl.parentElement;
+    const overflowWrap = parent && parent.querySelector(`.branch-overflow-wrap[data-bc="${bcId}"]`);
+    if (overflowWrap) {
+      refs = [...overflowWrap.children].filter(el =>
+        el.classList.contains('branch-strip-filler') ||
+        el.classList.contains('branch-overflow-content')
+      );
+    } else {
+      refs = [...bcEl.querySelectorAll(':scope > .branch-col')];
+    }
+  } else {
+    refs = [...bcEl.querySelectorAll(':scope > .branch-col')];
+  }
+
+  if (refs.length === 0) return;
+
+  // Center x of each ref element, relative to the gap element
+  const centers = refs.map(el => {
+    const r = el.getBoundingClientRect();
     return (r.left + r.right) / 2 - gRect.left;
   });
-  const cx = w / 2; // converge/spread point (center of the full width)
+  const cx = w / 2; // converge/spread point (center of full width)
 
   const svg = gapEl.querySelector('svg');
   svg.setAttribute('viewBox', `0 0 ${w} ${h}`);
 
-  svg.innerHTML = cols.map((col, i) => {
-    const stroke = 'rgba(74,144,226,0.7)'; // all connectors blue; strip ::before shows green/blue
+  svg.innerHTML = refs.map((el, i) => {
+    const stroke = 'rgba(74,144,226,0.7)';
     const colX = centers[i];
-
-    // Bezier control points sit at 55% / 45% for a smooth S-curve
     let d;
     if (isMerge) {
-      // top: each column center → bottom: shared center
       d = `M${colX},0 C${colX},${h * 0.55} ${cx},${h * 0.45} ${cx},${h}`;
     } else {
-      // top: shared center → bottom: each column center
       d = `M${cx},0 C${cx},${h * 0.55} ${colX},${h * 0.45} ${colX},${h}`;
     }
     return `<path d="${d}" stroke="${stroke}" stroke-width="2" fill="none"/>`;
