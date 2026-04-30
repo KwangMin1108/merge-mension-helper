@@ -213,15 +213,23 @@ body {
 /* ── Branch layout ─────────────────────────── */
 .branch-cols { display: flex; gap: 6px; }
 .branch-col {
-  flex-shrink: 1;
-  flex-basis: 0;
+  /* Active: takes an equal share of remaining space */
+  flex: 1 1 0;
   min-width: 0;
   border: 1px solid rgba(30,58,95,0.85);
   border-radius: var(--radius);
   padding: 4px;
   background: rgba(255,255,255,0.02);
   position: relative;
-  transition: flex-grow 0.35s ease;
+  transition: flex-basis 0.35s ease, flex-grow 0.35s ease;
+  overflow: hidden;
+}
+/* Done branch: collapses to a fixed narrow strip */
+.branch-col.branch-done {
+  flex: 0 0 26px;
+  min-width: 26px;
+  padding: 4px 2px;
+  cursor: default;
 }
 /* Vertical connector line running the full height of each branch column */
 .branch-col::before {
@@ -702,41 +710,23 @@ function renderQuestItem(task, inArea) {
   </div>`;
 }
 
-// ── Dynamic column flex widths ────────────────────────────────────
-// Done branch → 1 unit; active branches share remaining units equally.
-// Base: each branch gets 4 units (N branches = N*4 total).
-function computeColumnFlexes(colTaskArrays) {
-  const N = colTaskArrays.length;
-  const totalUnits = N * 4;
-  const doneMask = colTaskArrays.map(col =>
-    col.length === 0 || col.every(t => completedTaskIds.has(t.id))
-  );
-  const doneCount = doneMask.filter(Boolean).length;
-  const activeCount = N - doneCount;
-  const activeUnits = activeCount > 0
-    ? (totalUnits - doneCount) / activeCount
-    : totalUnits / N;
-  return doneMask.map(done => done ? 1 : activeUnits);
-}
-
 let _bcId = 0; // unique ID counter for branch sections; reset each render
 
 function renderSegments(segments, inArea) {
   return segments.map(seg => {
     if (seg.type === 'linear') return renderQuestItem(seg.task, inArea);
 
-    // Branch section
+    // Branch section — CSS handles widths:
+    //   active → flex: 1 1 0  (shares available space equally)
+    //   done   → flex: 0 0 26px  (collapses to a fixed narrow strip)
+    // No JS formula needed; flexbox redistributes automatically.
     const id = `bc${++_bcId}`;
-    const flexes = computeColumnFlexes(seg.columns);
-    const doneMask = seg.columns.map(col =>
-      col.length === 0 || col.every(t => completedTaskIds.has(t.id))
-    );
 
-    const colsHtml = seg.columns.map((colTasks, ci) => {
+    const colsHtml = seg.columns.map(colTasks => {
+      const done = colTasks.length === 0 || colTasks.every(t => completedTaskIds.has(t.id));
       const innerSegs = computeSegments(colTasks);
       const inner = renderSegments(innerSegs, inArea);
-      const cls = doneMask[ci] ? 'branch-col branch-done' : 'branch-col';
-      return `<div class="${cls}" style="flex-grow:${flexes[ci]}">${inner}</div>`;
+      return `<div class="branch-col${done ? ' branch-done' : ''}">${inner}</div>`;
     }).join('');
 
     return [
