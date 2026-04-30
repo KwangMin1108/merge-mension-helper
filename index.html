@@ -362,7 +362,7 @@ body {
       <h1>🏠 Merge Mansion Helper</h1>
       <div class="sub">지역을 선택하세요</div>
     </div>
-    <span class="ver-badge">v250501.7</span>
+    <span class="ver-badge">v250501.8</span>
   </div>
   <div id="areaList"></div>
   <div class="footer">Data sourced from <a href="https://merge-mansion.fandom.com/wiki/Areas" target="_blank">Merge Mansion Wiki</a> (CC-BY-SA)</div>
@@ -376,7 +376,7 @@ body {
       <h1 id="areaTitle"></h1>
       <div class="sub" id="areaSub"></div>
     </div>
-    <span class="ver-badge">v250501.7</span>
+    <span class="ver-badge">v250501.8</span>
   </div>
 
   <div class="progress-bar">
@@ -575,23 +575,36 @@ function findAreaBySlug(slug) {
   );
 }
 
-function handleHash() {
+async function handleHash() {
   if (!DATA) return;
   const h = location.hash.slice(1);
   if (h) {
     const slug = h.split('/')[0];
     const area = findAreaBySlug(slug);
-    if (area) { _openArea(area); return; }
+    if (area) { await _openArea(area); return; }
   }
   showAreaList();
 }
 
 // ── Load data ─────────────────────────────────────────────────────
+// Startup: fetch area index + items in parallel (tasks loaded per-area on demand)
 async function loadData() {
-  const resp = await fetch('data.json');
-  DATA = await resp.json();
+  const [areasResp, itemsResp] = await Promise.all([
+    fetch('data/areas.json'),
+    fetch('data/items.json')
+  ]);
+  const [areas, items] = await Promise.all([areasResp.json(), itemsResp.json()]);
+  DATA = { areas, items };
   document.getElementById('loading').style.display = 'none';
   handleHash();
+}
+
+// Load full area data (tasks) on first access; cached on the area object.
+async function loadAreaTasks(area) {
+  if (area.tasks) return; // already loaded
+  const resp = await fetch(`data/areas/${area.slug}.json`);
+  const full = await resp.json();
+  area.tasks = full.tasks || [];
 }
 
 // ── Screen: Area List ─────────────────────────────────────────────
@@ -603,11 +616,11 @@ function showAreaList() {
   container.innerHTML = '';
 
   let firstInProgress = null;
-  DATA.areas.filter(a => a.tasks.length > 0).forEach(area => {
+  DATA.areas.filter(a => (a.taskCount || 0) > 0).forEach(area => {
     const rawVal = saved[area.name];
     const done = typeof rawVal === 'number' ? rawVal
       : Array.isArray(rawVal) ? rawVal.length : 0;
-    const total = area.tasks.length;
+    const total = area.taskCount || 0;
     const pct = total > 0 ? Math.round(done / total * 100) : 0;
     const isDone = done >= total && total > 0;
 
@@ -636,11 +649,14 @@ function openArea(area) {
   _openArea(area);
 }
 
-function _openArea(area) {
-  currentArea = area;
-  completedTaskIds = loadCompletedIds(area);
+async function _openArea(area) {
+  // Show screen immediately with a loading indicator, then render once tasks arrive
   showScreen('screenArea');
   document.getElementById('areaTitle').textContent = area.nameKo || area.name;
+  document.getElementById('areaSub').textContent = '로딩 중…';
+  await loadAreaTasks(area);
+  currentArea = area;
+  completedTaskIds = loadCompletedIds(area);
   render();
 }
 
