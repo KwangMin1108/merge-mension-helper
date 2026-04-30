@@ -294,7 +294,7 @@ body {
 }
 .quest-item.done { background: var(--done); border-color: #2d6a4f; }
 .quest-item.current { background: var(--current-bg); border-color: var(--current-border); box-shadow: 0 0 0 1px var(--current-border); }
-.quest-item.locked { opacity: 0.45; cursor: default; }
+.quest-item.locked { opacity: 0.45; }
 .quest-header { display: flex; align-items: baseline; gap: 6px; overflow: hidden; }
 .quest-idx { font-size: 10px; color: var(--text-dim); flex-shrink: 0; }
 .quest-item.done .quest-idx { color: var(--done-text); }
@@ -490,9 +490,21 @@ function toggleTask(taskId) {
     }
     for (const id of toRemove) completedTaskIds.delete(id);
   } else {
-    const task = tasks.find(t => t.id === taskId);
-    if (!task || !isTaskAvailable(task, inArea)) return; // locked
-    completedTaskIds.add(taskId);
+    // Complete this task — if locked, cascade-complete all ancestors first.
+    // BFS upward through parents to collect every prerequisite not yet done.
+    const taskById = Object.fromEntries(tasks.map(t => [t.id, t]));
+    const toComplete = [];
+    const seen = new Set();
+    const q = [taskId];
+    while (q.length) {
+      const id = q.shift();
+      if (seen.has(id) || completedTaskIds.has(id)) continue;
+      seen.add(id);
+      toComplete.push(id);
+      for (const p of (taskById[id]?.parents || []).filter(p => inArea.has(p)))
+        q.push(p);
+    }
+    for (const id of toComplete) completedTaskIds.add(id);
   }
 
   saveState();
