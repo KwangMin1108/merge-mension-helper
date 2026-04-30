@@ -212,6 +212,8 @@ body {
 
 /* ── Branch layout ─────────────────────────── */
 .branch-cols { display: flex; gap: 6px; }
+/* All columns finished: tiny fixed-height thin-line band */
+.branch-cols.branch-cols-alldone { height: 10px; gap: 6px; }
 .branch-col {
   /* Active: takes an equal share of remaining space */
   flex: 1 1 0;
@@ -221,10 +223,11 @@ body {
   padding: 4px;
   background: rgba(255,255,255,0.02);
   position: relative;
+  container-type: inline-size; /* enables @container queries for narrow columns */
   transition: flex-basis 0.35s ease, flex-grow 0.35s ease;
   overflow: hidden;
 }
-/* Done branch (partial: other cols still active) — thin vertical line only */
+/* Done branch (some cols still active) — 3px thin line, content clipped */
 .branch-col.branch-done {
   flex: 0 0 3px;
   min-width: 3px;
@@ -232,13 +235,9 @@ body {
   border: none;
   border-radius: 0;
   background: none;
-  overflow: visible;
+  overflow: hidden; /* clip task cards; height comes from rendered content */
 }
-/* All-done branch (every column finished) — keep full width, show content */
-.branch-col.branch-all-done {
-  opacity: 0.5;
-}
-/* Vertical connector line running the full height of each branch column */
+/* Vertical connector line running the full height of each active branch column */
 .branch-col::before {
   content: '';
   position: absolute;
@@ -251,30 +250,38 @@ body {
   pointer-events: none;
   z-index: 0;
 }
-/* Done branch line fills its 3px width entirely */
+/* Done branch line: fills 3px width, fades out after last task (--fade-stop set by JS) */
 .branch-col.branch-done::before {
   left: 0;
   width: 100%;
   background: linear-gradient(to bottom,
-    transparent 0%, rgba(116,198,157,0.55) 4%,
-    rgba(116,198,157,0.55) 96%, transparent 100%);
-}
-/* All-done branch line: green tint */
-.branch-col.branch-all-done::before {
-  background: linear-gradient(to bottom,
-    transparent 0%, rgba(116,198,157,0.35) 12%,
-    rgba(116,198,157,0.35) 88%, transparent 100%);
+    transparent 0%,
+    rgba(116,198,157,0.55) 4%,
+    rgba(116,198,157,0.55) var(--fade-stop, 70%),
+    transparent calc(var(--fade-stop, 70%) + 6%)
+  );
 }
 /* Column containing inner branches: suppress ::before (SVG handles connections) */
-.branch-col.has-inner-branch::before {
-  display: none;
-}
+.branch-col.has-inner-branch::before { display: none; }
 .branch-col .quest-item {
   position: relative;
   z-index: 1;
   margin-bottom: 4px;
 }
 .branch-col .quest-item:last-child { margin-bottom: 0; }
+
+/* ── Compact quest layout for narrow branch columns ─── */
+@container (max-width: 90px) {
+  .quest-item {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 3px;
+    padding: 5px 6px;
+  }
+  .quest-desc, .quest-xp, .quest-unlock, .done-tag { display: none; }
+  .quest-reqs { max-width: 100%; justify-content: flex-start; }
+  .quest-idx { font-size: 11px; font-weight: 600; }
+}
 
 /* Branch connector gaps — hold the split/merge SVG curves */
 .branch-split-gap,
@@ -405,7 +412,7 @@ body {
       <h1>🏠 Merge Mansion Helper</h1>
       <div class="sub">지역을 선택하세요</div>
     </div>
-    <span class="ver-badge">v250430.7</span>
+    <span class="ver-badge">v250430.8</span>
   </div>
   <div id="areaList"></div>
   <div class="footer">Data sourced from <a href="https://merge-mansion.fandom.com/wiki/Areas" target="_blank">Merge Mansion Wiki</a> (CC-BY-SA)</div>
@@ -419,7 +426,7 @@ body {
       <h1 id="areaTitle"></h1>
       <div class="sub" id="areaSub"></div>
     </div>
-    <span class="ver-badge">v250430.7</span>
+    <span class="ver-badge">v250430.8</span>
   </div>
 
   <div class="progress-bar">
@@ -734,7 +741,7 @@ function renderQuestItem(task, inArea) {
   return `<div class="quest-item ${cls}" onclick="toggleTask('${task.id}')">
     <div class="quest-left">
       <div class="quest-header">
-        <span class="quest-idx">${task.index}</span>
+        <span class="quest-idx" title="${task.desc}">${task.index}</span>
         <span class="quest-desc" title="${task.desc}">${task.desc}</span>
         ${isDone ? '<span class="done-tag">완료</span>' : ''}
       </div>
@@ -761,27 +768,29 @@ function renderSegments(segments, inArea) {
       col.length === 0 || col.every(t => completedTaskIds.has(t.id))
     );
 
+    // All branches done → tiny fixed-height band of thin green lines, no SVG gaps
+    if (allDone) {
+      const thinHtml = sorted.map(() => `<div class="branch-col branch-done"></div>`).join('');
+      return `<div class="branch-cols branch-cols-alldone" id="${id}">${thinHtml}</div>`;
+    }
+
     const colsHtml = sorted.map(colTasks => {
       const done = colTasks.length === 0 || colTasks.every(t => completedTaskIds.has(t.id));
-
-      // Partial-done column: collapse to thin green line (no content needed)
-      if (done && !allDone) return `<div class="branch-col branch-done"></div>`;
-
-      // Render content (normal for active; all-done gets faded styling)
       const innerSegs = computeSegments(colTasks);
       const inner = renderSegments(innerSegs, inArea);
+
+      if (done) {
+        // Done column: render task content (gives correct height for --fade-stop),
+        // column is 3px so content is clipped; JS will compute --fade-stop after render
+        return `<div class="branch-col branch-done">${inner}</div>`;
+      }
+
+      // Active column
       const hasInnerBranch = innerSegs.some(s => s.type === 'branch');
-      const cls = ['branch-col',
-        done ? 'branch-all-done' : '',
-        hasInnerBranch ? 'has-inner-branch' : ''
-      ].filter(Boolean).join(' ');
+      const cls = ['branch-col', hasInnerBranch ? 'has-inner-branch' : '']
+        .filter(Boolean).join(' ');
       return `<div class="${cls}">${inner}</div>`;
     }).join('');
-
-    // All branches done → skip split/merge SVG gaps (nothing to visually connect)
-    if (allDone) {
-      return `<div class="branch-cols" id="${id}">${colsHtml}</div>`;
-    }
 
     return [
       `<div class="branch-split-gap" data-bc="${id}"><svg></svg></div>`,
@@ -833,6 +842,21 @@ function drawAllConnectors(containerEl) {
   containerEl.querySelectorAll('.branch-merge-gap').forEach(g => drawConnector(g, true));
 }
 
+// Compute --fade-stop for each done column so the green line fades out
+// exactly at the bottom of the last task card, not at the column's full height.
+function adjustDoneColumns(containerEl) {
+  containerEl.querySelectorAll('.branch-col.branch-done').forEach(col => {
+    const tasks = col.querySelectorAll('.quest-item');
+    if (!tasks.length) return;
+    const last = tasks[tasks.length - 1];
+    const colRect = col.getBoundingClientRect();
+    const colH = colRect.height;
+    if (colH < 1) return;
+    const fadeAt = Math.min(98, ((last.getBoundingClientRect().bottom - colRect.top + 4) / colH) * 100);
+    col.style.setProperty('--fade-stop', `${fadeAt.toFixed(1)}%`);
+  });
+}
+
 function renderQuests(tasks) {
   const el = document.getElementById('questList');
   const inArea = new Set(tasks.map(t => t.id));
@@ -842,6 +866,7 @@ function renderQuests(tasks) {
 
   requestAnimationFrame(() => {
     drawAllConnectors(el);
+    adjustDoneColumns(el);
     const cur = el.querySelector('.quest-item.current');
     if (cur) el.scrollTop = Math.max(0, cur.offsetTop - el.clientHeight * 0.25);
   });
