@@ -383,7 +383,7 @@ body {
       <h1>🏠 Merge Mansion Helper</h1>
       <div class="sub">지역을 선택하세요</div>
     </div>
-    <span class="ver-badge">v250502.3</span>
+    <span class="ver-badge">v250502.4</span>
   </div>
   <div id="areaList"></div>
   <div class="footer">Data sourced from <a href="https://merge-mansion.fandom.com/wiki/Areas" target="_blank">Merge Mansion Wiki</a> (CC-BY-SA)</div>
@@ -397,7 +397,7 @@ body {
       <h1 id="areaTitle"></h1>
       <div class="sub" id="areaSub"></div>
     </div>
-    <span class="ver-badge">v250502.3</span>
+    <span class="ver-badge">v250502.4</span>
   </div>
 
   <div class="progress-bar">
@@ -466,9 +466,10 @@ function isTaskAvailable(task, inArea) {
 function toggleTask(taskId) {
   const tasks = currentArea.tasks;
   const inArea = new Set(tasks.map(t => t.id));
+  const task = tasks.find(t => t.id === taskId);
 
   if (completedTaskIds.has(taskId)) {
-    // Undo: cascade-remove this task and all dependents
+    // Already done → undo: cascade-remove this task and all dependents
     const toRemove = new Set([taskId]);
     let changed = true;
     while (changed) {
@@ -484,13 +485,18 @@ function toggleTask(taskId) {
       }
     }
     for (const id of toRemove) completedTaskIds.delete(id);
+
+  } else if (isTaskAvailable(task, inArea)) {
+    // Current (available, not yet done) → mark this task as done
+    completedTaskIds.add(taskId);
+
   } else {
-    // Complete this task — if locked, cascade-complete all ancestors first.
-    // BFS upward through parents to collect every prerequisite not yet done.
+    // Locked (not yet available) → cascade-complete ancestors only.
+    // The task itself stays incomplete and naturally becomes "current".
     const taskById = Object.fromEntries(tasks.map(t => [t.id, t]));
     const toComplete = [];
     const seen = new Set();
-    const q = [taskId];
+    const q = [...(task?.parents || []).filter(p => inArea.has(p))];
     while (q.length) {
       const id = q.shift();
       if (seen.has(id) || completedTaskIds.has(id)) continue;
