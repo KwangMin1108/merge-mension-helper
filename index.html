@@ -210,37 +210,24 @@ body {
 }
 
 
-/* ── Branch layout ─────────────────────────── */
-.branch-cols { display: flex; gap: 6px; }
-.branch-col {
+/* ── Swimlane row-based branch layout ──────── */
+.swimlane-body { display: flex; flex-direction: column; }
+.level-row { display: flex; gap: 6px; margin-bottom: 4px; }
+/* Active lane cell: equal share of remaining width */
+.level-cell {
   flex: 1 1 0;
   min-width: 0;
   container-type: inline-size;
-  display: flex;
-  flex-direction: column;
 }
-.branch-col .quest-item { margin-bottom: 4px; }
-.branch-col .quest-item:last-child { margin-bottom: 0; }
-/* Structural continuation: blue line fills empty space below last task */
-.branch-col::after {
-  content: '';
-  flex: 1;
-  width: 2px;
-  background: rgba(74, 144, 226, 0.6);
-  align-self: center;
-  border-radius: 1px;
-}
-
-/* Done branch column: 4px blue strip */
-.branch-col.branch-col-done {
+/* Exhausted lane cell: thin blue strip, no content */
+.level-strip {
   flex: 0 0 4px;
   background: rgba(74, 144, 226, 0.75);
   border-radius: 2px;
-  overflow: hidden;
+  align-self: stretch;
 }
-.branch-col.branch-col-done::after { display: none; }
 
-/* ── Compact quest layout for narrow branch columns ─── */
+/* ── Compact quest layout for narrow lane cells ─── */
 @container (max-width: 90px) {
   .quest-item {
     flex-direction: column;
@@ -382,7 +369,7 @@ body {
       <h1>🏠 Merge Mansion Helper</h1>
       <div class="sub">지역을 선택하세요</div>
     </div>
-    <span class="ver-badge">v250502.1</span>
+    <span class="ver-badge">v250502.2</span>
   </div>
   <div id="areaList"></div>
   <div class="footer">Data sourced from <a href="https://merge-mansion.fandom.com/wiki/Areas" target="_blank">Merge Mansion Wiki</a> (CC-BY-SA)</div>
@@ -396,7 +383,7 @@ body {
       <h1 id="areaTitle"></h1>
       <div class="sub" id="areaSub"></div>
     </div>
-    <span class="ver-badge">v250502.1</span>
+    <span class="ver-badge">v250502.2</span>
   </div>
 
   <div class="progress-bar">
@@ -740,44 +727,81 @@ function renderQuestItem(task, inArea) {
 
 let _bcId = 0; // unique ID counter for branch sections; reset each render
 
+function renderSwimlane(columns, inArea) {
+  const id = `bc${++_bcId}`;
+  // Each lane tracks its own segment list + pointer
+  let lanes = columns.map(col => ({ segs: computeSegments(col), ptr: 0 }));
+  let body = '';
+  let safety = 0;
+
+  while (safety++ < 2000) {
+    // Expand any lane whose current segment is itself a branch
+    let expanded = false;
+    for (let i = 0; i < lanes.length; i++) {
+      const l = lanes[i];
+      if (l.ptr < l.segs.length && l.segs[l.ptr].type === 'branch') {
+        const inner = l.segs[l.ptr];
+        l.ptr++;
+        const subs = inner.columns.map(sub => ({
+          segs: computeSegments(sub), ptr: 0
+        }));
+        lanes.splice(i, 1, ...subs);
+        expanded = true;
+        break; // restart expansion check
+      }
+    }
+    if (expanded) continue;
+
+    // All lanes exhausted → done
+    if (!lanes.some(l => l.ptr < l.segs.length)) break;
+
+    // Render one level-row: active lanes get a cell, exhausted lanes get a strip
+    const cells = lanes.map(l => {
+      if (l.ptr >= l.segs.length)
+        return `<div class="level-strip"></div>`;
+      const task = l.segs[l.ptr++].task;
+      return `<div class="level-cell">${renderQuestItem(task, inArea)}</div>`;
+    }).join('');
+    body += `<div class="level-row">${cells}</div>`;
+  }
+
+  return [
+    `<div class="branch-split-gap" data-bc="${id}"><svg></svg></div>`,
+    `<div class="swimlane-body" id="${id}">${body}</div>`,
+    `<div class="branch-merge-gap" data-bc="${id}"><svg></svg></div>`
+  ].join('');
+}
+
 function renderSegments(segments, inArea) {
   return segments.map(seg => {
     if (seg.type === 'linear') return renderQuestItem(seg.task, inArea);
-
-    const id = `bc${++_bcId}`;
-    const colsHtml = seg.columns.map(col => {
-      const isDone = col.length > 0 && col.every(t => completedTaskIds.has(t.id));
-      if (isDone) return `<div class="branch-col branch-col-done"></div>`;
-      const inner = renderSegments(computeSegments(col), inArea);
-      return `<div class="branch-col">${inner}</div>`;
-    }).join('');
-
-    return [
-      `<div class="branch-split-gap" data-bc="${id}"><svg></svg></div>`,
-      `<div class="branch-cols" id="${id}">${colsHtml}</div>`,
-      `<div class="branch-merge-gap" data-bc="${id}"><svg></svg></div>`
-    ].join('');
+    return renderSwimlane(seg.columns, inArea);
   }).join('');
 }
 
 // ── SVG connector drawing ─────────────────────────────────────────
 function drawConnector(gapEl, isMerge) {
-  const bcEl = document.getElementById(gapEl.dataset.bc);
-  if (!bcEl) return;
+  const bodyEl = document.getElementById(gapEl.dataset.bc);
+  if (!bodyEl) return;
   const gRect = gapEl.getBoundingClientRect();
   const w = gRect.width, h = gapEl.offsetHeight;
   if (w < 2 || h < 2) return;
 
-  const cols = [...bcEl.querySelectorAll(':scope > .branch-col')];
-  if (cols.length === 0) return;
+  const rows = [...bodyEl.querySelectorAll(':scope > .level-row')];
+  if (!rows.length) return;
+
+  // For split: use first row's cells. For merge: use last row's cells.
+  const refRow = isMerge ? rows[rows.length - 1] : rows[0];
+  const cells = [...refRow.querySelectorAll(':scope > .level-cell')];
+  if (!cells.length) return;
 
   const stroke = 'rgba(74,144,226,0.7)';
   const fullCx = w / 2;
   const svg = gapEl.querySelector('svg');
   svg.setAttribute('viewBox', `0 0 ${w} ${h}`);
 
-  svg.innerHTML = cols.map(col => {
-    const r = col.getBoundingClientRect();
+  svg.innerHTML = cells.map(cell => {
+    const r = cell.getBoundingClientRect();
     const colX = (r.left + r.right) / 2 - gRect.left;
     const d = isMerge
       ? `M${colX},0 C${colX},${h*0.55} ${fullCx},${h*0.45} ${fullCx},${h}`
