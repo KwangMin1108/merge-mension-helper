@@ -212,7 +212,21 @@ body {
 
 /* ── Swimlane row-based branch layout ──────── */
 .swimlane-body { display: flex; flex-direction: column; }
-.level-row { display: flex; gap: 6px; margin-bottom: 4px; }
+.level-row { display: flex; gap: 6px; }
+/* Row-to-row connector gap — holds per-row-transition SVG bezier curves */
+.row-connector {
+  height: 14px;
+  position: relative;
+  width: 100%;
+  flex-shrink: 0;
+}
+.row-connector svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
 /* Active lane cell: equal share of remaining width */
 .level-cell {
   flex: 1 1 0;
@@ -369,7 +383,7 @@ body {
       <h1>🏠 Merge Mansion Helper</h1>
       <div class="sub">지역을 선택하세요</div>
     </div>
-    <span class="ver-badge">v250502.2</span>
+    <span class="ver-badge">v250502.3</span>
   </div>
   <div id="areaList"></div>
   <div class="footer">Data sourced from <a href="https://merge-mansion.fandom.com/wiki/Areas" target="_blank">Merge Mansion Wiki</a> (CC-BY-SA)</div>
@@ -383,7 +397,7 @@ body {
       <h1 id="areaTitle"></h1>
       <div class="sub" id="areaSub"></div>
     </div>
-    <span class="ver-badge">v250502.2</span>
+    <span class="ver-badge">v250502.3</span>
   </div>
 
   <div class="progress-bar">
@@ -725,13 +739,19 @@ function renderQuestItem(task, inArea) {
   </div>`;
 }
 
-let _bcId = 0; // unique ID counter for branch sections; reset each render
+let _bcId = 0;          // unique ID counter for branch sections; reset each render
+let _rowTransitions = {}; // bcId → [{fromIdx, toIdxs}[]] per row-gap
 
 function renderSwimlane(columns, inArea) {
   const id = `bc${++_bcId}`;
-  // Each lane tracks its own segment list + pointer
-  let lanes = columns.map(col => ({ segs: computeSegments(col), ptr: 0 }));
-  let body = '';
+
+  // Each lane: { segs, ptr, laneId } — laneId uses dot-notation for hierarchy
+  let lanes = columns.map((col, i) => ({
+    segs: computeSegments(col), ptr: 0, laneId: String(i)
+  }));
+
+  // Collect all rows before building HTML (needed for transition mapping)
+  const rowData = []; // each entry: [{laneId, isStrip, task}]
   let safety = 0;
 
   while (safety++ < 2000) {
@@ -740,30 +760,55 @@ function renderSwimlane(columns, inArea) {
     for (let i = 0; i < lanes.length; i++) {
       const l = lanes[i];
       if (l.ptr < l.segs.length && l.segs[l.ptr].type === 'branch') {
-        const inner = l.segs[l.ptr];
-        l.ptr++;
-        const subs = inner.columns.map(sub => ({
-          segs: computeSegments(sub), ptr: 0
+        const inner = l.segs[l.ptr]; l.ptr++;
+        const subs = inner.columns.map((sub, si) => ({
+          segs: computeSegments(sub), ptr: 0,
+          laneId: l.laneId + '.' + si
         }));
         lanes.splice(i, 1, ...subs);
         expanded = true;
-        break; // restart expansion check
+        break;
       }
     }
     if (expanded) continue;
-
-    // All lanes exhausted → done
     if (!lanes.some(l => l.ptr < l.segs.length)) break;
 
-    // Render one level-row: active lanes get a cell, exhausted lanes get a strip
-    const cells = lanes.map(l => {
-      if (l.ptr >= l.segs.length)
-        return `<div class="level-strip"></div>`;
-      const task = l.segs[l.ptr++].task;
-      return `<div class="level-cell">${renderQuestItem(task, inArea)}</div>`;
-    }).join('');
-    body += `<div class="level-row">${cells}</div>`;
+    rowData.push(lanes.map(l => {
+      const isStrip = l.ptr >= l.segs.length;
+      const task = isStrip ? null : l.segs[l.ptr++].task;
+      return { laneId: l.laneId, isStrip, task };
+    }));
   }
+
+  // Compute row-to-row lane transitions (for bezier connector drawing)
+  // A cell in row R maps to cells in row R+1 whose laneId equals or starts with cell's laneId
+  const transitions = rowData.slice(0, -1).map((prev, r) => {
+    const next = rowData[r + 1];
+    return prev.map((cell, fi) => ({
+      fromIdx: fi,
+      toIdxs: next
+        .map((c, ni) => ni)
+        .filter(ni => {
+          const lid = next[ni].laneId;
+          return lid === cell.laneId || lid.startsWith(cell.laneId + '.');
+        })
+    }));
+  });
+  _rowTransitions[id] = transitions;
+
+  // Build HTML: level-rows interleaved with row-connector gaps
+  let body = '';
+  rowData.forEach((cells, r) => {
+    const rowHtml = cells.map(c =>
+      c.isStrip
+        ? `<div class="level-strip" data-lane="${c.laneId}"></div>`
+        : `<div class="level-cell" data-lane="${c.laneId}">${renderQuestItem(c.task, inArea)}</div>`
+    ).join('');
+    body += `<div class="level-row">${rowHtml}</div>`;
+    if (r < rowData.length - 1) {
+      body += `<div class="row-connector" data-bc="${id}" data-row="${r}"><svg></svg></div>`;
+    }
+  });
 
   return [
     `<div class="branch-split-gap" data-bc="${id}"><svg></svg></div>`,
@@ -780,6 +825,8 @@ function renderSegments(segments, inArea) {
 }
 
 // ── SVG connector drawing ─────────────────────────────────────────
+
+// Split-gap / merge-gap connectors (outer branch boundaries)
 function drawConnector(gapEl, isMerge) {
   const bodyEl = document.getElementById(gapEl.dataset.bc);
   if (!bodyEl) return;
@@ -790,9 +837,12 @@ function drawConnector(gapEl, isMerge) {
   const rows = [...bodyEl.querySelectorAll(':scope > .level-row')];
   if (!rows.length) return;
 
-  // For split: use first row's cells. For merge: use last row's cells.
   const refRow = isMerge ? rows[rows.length - 1] : rows[0];
-  const cells = [...refRow.querySelectorAll(':scope > .level-cell')];
+  // For split: only active cells (first row never has strips).
+  // For merge: include strips too — exhausted lanes are also prerequisites of the merge task.
+  const cells = isMerge
+    ? [...refRow.children]
+    : [...refRow.querySelectorAll(':scope > .level-cell')];
   if (!cells.length) return;
 
   const stroke = 'rgba(74,144,226,0.7)';
@@ -803,16 +853,71 @@ function drawConnector(gapEl, isMerge) {
   svg.innerHTML = cells.map(cell => {
     const r = cell.getBoundingClientRect();
     const colX = (r.left + r.right) / 2 - gRect.left;
+    const isStrip = cell.classList.contains('level-strip');
+    const sw = isStrip ? 4 : 2;
     const d = isMerge
       ? `M${colX},0 C${colX},${h*0.55} ${fullCx},${h*0.45} ${fullCx},${h}`
       : `M${fullCx},0 C${fullCx},${h*0.55} ${colX},${h*0.45} ${colX},${h}`;
-    return `<path d="${d}" stroke="${stroke}" stroke-width="2" fill="none"/>`;
+    return `<path d="${d}" stroke="${stroke}" stroke-width="${sw}" fill="none"/>`;
   }).join('');
+}
+
+// Row-to-row connectors (within a swimlane, between consecutive level-rows)
+function drawRowConnector(gapEl) {
+  const id = gapEl.dataset.bc;
+  const rowIdx = parseInt(gapEl.dataset.row);
+  const transitions = _rowTransitions[id];
+  if (!transitions || !transitions[rowIdx]) return;
+
+  const bodyEl = document.getElementById(id);
+  if (!bodyEl) return;
+
+  const rows = [...bodyEl.querySelectorAll(':scope > .level-row')];
+  const fromRow = rows[rowIdx];
+  const toRow = rows[rowIdx + 1];
+  if (!fromRow || !toRow) return;
+
+  const gRect = gapEl.getBoundingClientRect();
+  const w = gRect.width, h = gapEl.offsetHeight;
+  if (w < 2 || h < 2) return;
+
+  const fromCells = [...fromRow.children];
+  const toCells = [...toRow.children];
+  const stroke = 'rgba(74,144,226,0.7)';
+  const paths = [];
+
+  transitions[rowIdx].forEach(({ fromIdx, toIdxs }) => {
+    const fromCell = fromCells[fromIdx];
+    if (!fromCell) return;
+    const fr = fromCell.getBoundingClientRect();
+    const fromX = (fr.left + fr.right) / 2 - gRect.left;
+    const isFromStrip = fromCell.classList.contains('level-strip');
+
+    toIdxs.forEach(ti => {
+      const toCell = toCells[ti];
+      if (!toCell) return;
+      const tr = toCell.getBoundingClientRect();
+      const toX = (tr.left + tr.right) / 2 - gRect.left;
+      const isToStrip = toCell.classList.contains('level-strip');
+
+      const sw = (isFromStrip && isToStrip) ? 4 : 2;
+      const sameX = Math.abs(fromX - toX) < 3;
+      const d = sameX
+        ? `M${fromX},0 L${toX},${h}`
+        : `M${fromX},0 C${fromX},${h * 0.6} ${toX},${h * 0.4} ${toX},${h}`;
+      paths.push(`<path d="${d}" stroke="${stroke}" stroke-width="${sw}" fill="none" stroke-linecap="round"/>`);
+    });
+  });
+
+  const svg = gapEl.querySelector('svg');
+  svg.setAttribute('viewBox', `0 0 ${w} ${h}`);
+  svg.innerHTML = paths.join('');
 }
 
 function drawAllConnectors(containerEl) {
   containerEl.querySelectorAll('.branch-split-gap').forEach(g => drawConnector(g, false));
   containerEl.querySelectorAll('.branch-merge-gap').forEach(g => drawConnector(g, true));
+  containerEl.querySelectorAll('.row-connector').forEach(g => drawRowConnector(g));
 }
 
 
@@ -821,6 +926,7 @@ function renderQuests(tasks) {
   const el = document.getElementById('questList');
   const inArea = new Set(tasks.map(t => t.id));
   _bcId = 0;
+  _rowTransitions = {};
   const segments = computeSegments(tasks);
   el.innerHTML = renderSegments(segments, inArea);
 
