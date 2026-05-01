@@ -383,7 +383,7 @@ body {
       <h1>🏠 Merge Mansion Helper</h1>
       <div class="sub">지역을 선택하세요</div>
     </div>
-    <span class="ver-badge">v250502.4</span>
+    <span class="ver-badge">v250502.5</span>
   </div>
   <div id="areaList"></div>
   <div class="footer">Data sourced from <a href="https://merge-mansion.fandom.com/wiki/Areas" target="_blank">Merge Mansion Wiki</a> (CC-BY-SA)</div>
@@ -397,7 +397,7 @@ body {
       <h1 id="areaTitle"></h1>
       <div class="sub" id="areaSub"></div>
     </div>
-    <span class="ver-badge">v250502.4</span>
+    <span class="ver-badge">v250502.5</span>
   </div>
 
   <div class="progress-bar">
@@ -939,7 +939,18 @@ function renderQuests(tasks) {
   requestAnimationFrame(() => {
     drawAllConnectors(el);
     const cur = el.querySelector('.quest-item.current');
-    if (cur) el.scrollTop = Math.max(0, cur.offsetTop - el.clientHeight * 0.25);
+    if (!cur) return;
+    const allItems = [...el.querySelectorAll('.quest-item')];
+    const idx = allItems.indexOf(cur);
+    if (idx <= 0) {
+      el.scrollTop = 0;
+    } else {
+      // Scroll so the task just above the current task sits at the bottom of the viewport
+      const prev = allItems[idx - 1];
+      const containerRect = el.getBoundingClientRect();
+      const prevRect = prev.getBoundingClientRect();
+      el.scrollTop += prevRect.bottom - containerRect.bottom + 8;
+    }
   });
 }
 
