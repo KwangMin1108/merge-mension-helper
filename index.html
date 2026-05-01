@@ -216,17 +216,19 @@ body {
   flex: 1 1 0;
   min-width: 0;
   container-type: inline-size;
+  display: flex;
+  flex-direction: column;
 }
 .branch-col .quest-item { margin-bottom: 4px; }
 .branch-col .quest-item:last-child { margin-bottom: 0; }
-/* Done branch: collapse to a thin blue strip */
-.branch-col.branch-col-done {
-  flex: 0 0 4px;
-  background: rgba(74, 144, 226, 0.75);
-  border-radius: 2px;
-  container-type: normal;
-  overflow: hidden;
-  align-self: stretch;
+/* Structural continuation: blue line fills empty space below last task */
+.branch-col::after {
+  content: '';
+  flex: 1;
+  width: 2px;
+  background: rgba(74, 144, 226, 0.6);
+  align-self: center;
+  border-radius: 1px;
 }
 
 /* ── Compact quest layout for narrow branch columns ─── */
@@ -371,7 +373,7 @@ body {
       <h1>🏠 Merge Mansion Helper</h1>
       <div class="sub">지역을 선택하세요</div>
     </div>
-    <span class="ver-badge">v250501.9</span>
+    <span class="ver-badge">v250501.10</span>
   </div>
   <div id="areaList"></div>
   <div class="footer">Data sourced from <a href="https://merge-mansion.fandom.com/wiki/Areas" target="_blank">Merge Mansion Wiki</a> (CC-BY-SA)</div>
@@ -385,7 +387,7 @@ body {
       <h1 id="areaTitle"></h1>
       <div class="sub" id="areaSub"></div>
     </div>
-    <span class="ver-badge">v250501.9</span>
+    <span class="ver-badge">v250501.10</span>
   </div>
 
   <div class="progress-bar">
@@ -735,11 +737,6 @@ function renderSegments(segments, inArea) {
 
     const id = `bc${++_bcId}`;
     const colsHtml = seg.columns.map(col => {
-      // If every task in this branch column is completed, render a minimal strip
-      const isDone = col.length > 0 && col.every(t => completedTaskIds.has(t.id));
-      if (isDone) {
-        return `<div class="branch-col branch-col-done"></div>`;
-      }
       const inner = renderSegments(computeSegments(col), inArea);
       return `<div class="branch-col">${inner}</div>`;
     }).join('');
