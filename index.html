@@ -231,10 +231,14 @@ body {
   border-radius: 1px;
 }
 
-/* Done branch column: narrow but task items still visible */
+/* Done branch column: 4px blue strip */
 .branch-col.branch-col-done {
-  flex: 0 0 44px;
+  flex: 0 0 4px;
+  background: rgba(74, 144, 226, 0.75);
+  border-radius: 2px;
+  overflow: hidden;
 }
+.branch-col.branch-col-done::after { display: none; }
 
 /* ── Compact quest layout for narrow branch columns ─── */
 @container (max-width: 90px) {
@@ -247,10 +251,6 @@ body {
   .quest-desc, .quest-xp, .quest-unlock, .done-tag { display: none; }
   .quest-reqs { max-width: 100%; justify-content: flex-start; }
   .quest-idx { font-size: 11px; font-weight: 600; }
-}
-/* Ultra-narrow: index only */
-@container (max-width: 50px) {
-  .quest-reqs { display: none; }
 }
 
 /* Branch connector gaps — hold the split/merge SVG curves */
@@ -382,7 +382,7 @@ body {
       <h1>🏠 Merge Mansion Helper</h1>
       <div class="sub">지역을 선택하세요</div>
     </div>
-    <span class="ver-badge">v250501.11</span>
+    <span class="ver-badge">v250502.1</span>
   </div>
   <div id="areaList"></div>
   <div class="footer">Data sourced from <a href="https://merge-mansion.fandom.com/wiki/Areas" target="_blank">Merge Mansion Wiki</a> (CC-BY-SA)</div>
@@ -396,7 +396,7 @@ body {
       <h1 id="areaTitle"></h1>
       <div class="sub" id="areaSub"></div>
     </div>
-    <span class="ver-badge">v250501.11</span>
+    <span class="ver-badge">v250502.1</span>
   </div>
 
   <div class="progress-bar">
@@ -747,8 +747,9 @@ function renderSegments(segments, inArea) {
     const id = `bc${++_bcId}`;
     const colsHtml = seg.columns.map(col => {
       const isDone = col.length > 0 && col.every(t => completedTaskIds.has(t.id));
+      if (isDone) return `<div class="branch-col branch-col-done"></div>`;
       const inner = renderSegments(computeSegments(col), inArea);
-      return `<div class="branch-col${isDone ? ' branch-col-done' : ''}">${inner}</div>`;
+      return `<div class="branch-col">${inner}</div>`;
     }).join('');
 
     return [
