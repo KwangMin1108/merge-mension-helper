@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="ko">
+<html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
@@ -45,6 +45,17 @@ body {
 .header h1 { font-size: 17px; font-weight: 700; flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .header .sub { font-size: 11px; color: var(--text-dim); margin-top: 1px; }
 .back-btn { background: none; border: none; color: var(--accent); font-size: 24px; cursor: pointer; padding: 0 4px; line-height: 1; flex-shrink: 0; }
+.lang-select {
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 3px 5px;
+  cursor: pointer;
+  flex-shrink: 0;
+}
 
 /* ── Progress ──────────────────────────────── */
 .progress-bar {
@@ -383,7 +394,14 @@ body {
       <h1>🏠 Merge Mansion Helper</h1>
       <div class="sub">지역을 선택하세요</div>
     </div>
-    <span class="ver-badge">v250502.5</span>
+    <select class="lang-select" onchange="changeLang(this.value)" id="langSelect1">
+      <option value="en">EN</option><option value="ko">KO</option>
+      <option value="fr">FR</option><option value="de">DE</option>
+      <option value="es">ES</option><option value="it">IT</option>
+      <option value="pt">PT</option><option value="ru">RU</option>
+      <option value="ja">JA</option>
+    </select>
+    <span class="ver-badge">v250502.6</span>
   </div>
   <div id="areaList"></div>
   <div class="footer">Data sourced from <a href="https://merge-mansion.fandom.com/wiki/Areas" target="_blank">Merge Mansion Wiki</a> (CC-BY-SA)</div>
@@ -397,7 +415,14 @@ body {
       <h1 id="areaTitle"></h1>
       <div class="sub" id="areaSub"></div>
     </div>
-    <span class="ver-badge">v250502.5</span>
+    <select class="lang-select" onchange="changeLang(this.value)" id="langSelect2">
+      <option value="en">EN</option><option value="ko">KO</option>
+      <option value="fr">FR</option><option value="de">DE</option>
+      <option value="es">ES</option><option value="it">IT</option>
+      <option value="pt">PT</option><option value="ru">RU</option>
+      <option value="ja">JA</option>
+    </select>
+    <span class="ver-badge">v250502.6</span>
   </div>
 
   <div class="progress-bar">
@@ -433,6 +458,42 @@ body {
 let DATA = null;
 let currentArea = null;
 let completedTaskIds = new Set();
+
+// ── i18n ──────────────────────────────────────────────────────────
+let currentLang = 'en';
+let I18N = {};
+const SUPPORTED_LANGS = ['en','ko','fr','de','es','it','pt','ru','ja'];
+
+function t(mpcKey, fallback) {
+  return (mpcKey && I18N[mpcKey]) || fallback || '';
+}
+
+function detectLang() {
+  const saved = localStorage.getItem('mmh_lang');
+  if (saved && SUPPORTED_LANGS.includes(saved)) return saved;
+  const browser = (navigator.language || 'en').split('-')[0].toLowerCase();
+  return SUPPORTED_LANGS.includes(browser) ? browser : 'en';
+}
+
+async function loadI18n(lang) {
+  try {
+    const resp = await fetch(`data/i18n/${lang}.json`);
+    I18N = await resp.json();
+    currentLang = lang;
+    localStorage.setItem('mmh_lang', lang);
+    document.documentElement.lang = lang;
+    document.querySelectorAll('.lang-select').forEach(s => s.value = lang);
+  } catch(e) { console.warn('i18n load failed:', lang); }
+}
+
+async function changeLang(lang) {
+  await loadI18n(lang);
+  if (document.getElementById('screenArea').classList.contains('active') && currentArea) {
+    render();
+  } else {
+    showAreaList();
+  }
+}
 let itemViewCompact = true;
 
 function imgUrl(url) {
@@ -616,12 +677,20 @@ async function handleHash() {
 // ── Load data ─────────────────────────────────────────────────────
 // Startup: fetch area index + items in parallel (tasks loaded per-area on demand)
 async function loadData() {
-  const [areasResp, itemsResp] = await Promise.all([
+  const lang = detectLang();
+  const [areasResp, itemsResp, i18nResp] = await Promise.all([
     fetch('data/areas.json'),
-    fetch('data/items.json')
+    fetch('data/items.json'),
+    fetch(`data/i18n/${lang}.json`)
   ]);
   const [areas, items] = await Promise.all([areasResp.json(), itemsResp.json()]);
   DATA = { areas, items };
+  try {
+    I18N = await i18nResp.json();
+    currentLang = lang;
+    document.documentElement.lang = lang;
+    document.querySelectorAll('.lang-select').forEach(s => s.value = lang);
+  } catch(e) {}
   document.getElementById('loading').style.display = 'none';
   handleHash();
 }
@@ -711,7 +780,7 @@ function renderQuestItem(task, inArea) {
 
   const reqs = task.requirements.map(r => {
     const item = DATA.items[r.name] || {};
-    const name = item.name || r.name;
+    const name = t(item.mpcKey, item.name || r.name);
     const url = imgUrl(item.imageUrl);
     const lv = item.level || 1;
     const tip = `${name} (L${lv}) ×${r.amount}`;
@@ -973,7 +1042,7 @@ function renderItems(tasks) {
   if (itemViewCompact) {
     el.innerHTML = `<div class="items-compact-grid">${entries.map(([id, qty]) => {
       const item = DATA.items[id] || {};
-      const name = item.name || id;
+      const name = t(item.mpcKey, item.name || id);
       const lv = item.level || 1;
       const url = imgUrl(item.imageUrl);
       const tip = `${name} (L${lv}) ×${qty}`;
@@ -986,7 +1055,7 @@ function renderItems(tasks) {
   } else {
     el.innerHTML = entries.map(([id, qty]) => {
       const item = DATA.items[id] || {};
-      const name = item.name || id;
+      const name = t(item.mpcKey, item.name || id);
       const chain = item.chainName || '';
       const url = imgUrl(item.imageUrl);
       const icon = url
@@ -1035,7 +1104,7 @@ function renderRewards(tasks) {
   }
   for (const [id, cnt] of Object.entries(items)) {
     const item = DATA.items[id] || {};
-    const name = item.name || id;
+    const name = t(item.mpcKey, item.name || id);
     const lv = item.level || 1;
     const url = imgUrl(item.imageUrl);
     const tip = `${name} (L${lv})`;
