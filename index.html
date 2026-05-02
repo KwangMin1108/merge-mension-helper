@@ -1142,11 +1142,11 @@ loadData().catch(err => {
 <script data-goatcounter="https://kwangminlee1108.goatcounter.com/count"
         async src="//gc.zgo.at/count.js"></script>
 <script>
-fetch('https://kwangminlee1108.goatcounter.com/counter//.json')
+fetch('https://kwangminlee1108.goatcounter.com/counter/%2Fmerge-mension-helper%2F.json')
   .then(r => r.json())
   .then(d => {
     const el = document.getElementById('visitorCount');
-    if (el) el.textContent = Number(d.count).toLocaleString();
+    if (el && d.count) el.textContent = Number(d.count).toLocaleString();
   })
   .catch(() => {});
 </script>
