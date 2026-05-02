@@ -401,7 +401,7 @@ body {
       <option value="pt">PT</option><option value="ru">RU</option>
       <option value="ja">JA</option>
     </select>
-    <span class="ver-badge">v250502.6</span>
+    <span class="ver-badge">v250502.7</span>
   </div>
   <div id="areaList"></div>
   <div class="footer">Data sourced from <a href="https://merge-mansion.fandom.com/wiki/Areas" target="_blank">Merge Mansion Wiki</a> (CC-BY-SA)</div>
@@ -422,7 +422,7 @@ body {
       <option value="pt">PT</option><option value="ru">RU</option>
       <option value="ja">JA</option>
     </select>
-    <span class="ver-badge">v250502.6</span>
+    <span class="ver-badge">v250502.7</span>
   </div>
 
   <div class="progress-bar">
@@ -803,8 +803,8 @@ function renderQuestItem(task, inArea) {
   return `<div class="quest-item ${cls}" onclick="toggleTask('${task.id}')">
     <div class="quest-left">
       <div class="quest-header">
-        <span class="quest-idx" title="${task.desc}">${task.index}</span>
-        <span class="quest-desc" title="${task.desc}">${task.desc}</span>
+        <span class="quest-idx" title="${t('HotspotDescription_'+task.id, task.desc)}">${task.index}</span>
+        <span class="quest-desc" title="${t('HotspotDescription_'+task.id, task.desc)}">${t('HotspotDescription_'+task.id, task.desc)}</span>
         ${isDone ? '<span class="done-tag">완료</span>' : ''}
       </div>
       ${xp ? `<div class="quest-xp">⭐ ${xp} XP</div>` : ''}
