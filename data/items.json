@@ -1123,7 +1123,7 @@
     "level": 1,
     "chainName": "Bench",
     "desc": "MERGE to create a Wooden Stool.",
-    "imageUrl": "https://static.wikia.nocookie.net/merge-mansion/images/0/06/Garden_bench1.png/revision/latest/scale-to-width-down/64",
+    "imageUrl": "https://static.wikia.nocookie.net/merge-mansion/images/f/f0/Bench01.png/revision/latest?cb=20201218182946",
     "officialName": "Wooden Bench",
     "mpcKey": "Item_GardenBench1"
   },
@@ -1133,7 +1133,7 @@
     "level": 2,
     "chainName": "Bench",
     "desc": "MERGE to create a Stool.",
-    "imageUrl": "https://static.wikia.nocookie.net/merge-mansion/images/5/5e/Garden_bench2.png/revision/latest/scale-to-width-down/64",
+    "imageUrl": "https://static.wikia.nocookie.net/merge-mansion/images/7/74/Bench02.png/revision/latest?cb=20201218183008",
     "officialName": "Wooden Stool",
     "mpcKey": "Item_GardenBench2"
   },
@@ -1143,7 +1143,7 @@
     "level": 3,
     "chainName": "Bench",
     "desc": "MERGE to create a High Stool.",
-    "imageUrl": "https://static.wikia.nocookie.net/merge-mansion/images/6/6a/Garden_bench3.png/revision/latest/scale-to-width-down/64",
+    "imageUrl": "https://static.wikia.nocookie.net/merge-mansion/images/1/17/Bench03.png/revision/latest?cb=20201218183024",
     "officialName": "Stool",
     "mpcKey": "Item_GardenBench3"
   },
@@ -1153,7 +1153,7 @@
     "level": 4,
     "chainName": "Bench",
     "desc": "MERGE to create a Chair.",
-    "imageUrl": "https://static.wikia.nocookie.net/merge-mansion/images/3/3f/Garden_bench4.png/revision/latest/scale-to-width-down/64",
+    "imageUrl": "https://static.wikia.nocookie.net/merge-mansion/images/6/6a/Bench04.png/revision/latest?cb=20201218183037",
     "officialName": "High Stool",
     "mpcKey": "Item_GardenBench4"
   },
@@ -1163,7 +1163,7 @@
     "level": 5,
     "chainName": "Bench",
     "desc": "MERGE to create a Garden Bench.",
-    "imageUrl": "https://static.wikia.nocookie.net/merge-mansion/images/9/9e/Garden_bench5.png/revision/latest/scale-to-width-down/64",
+    "imageUrl": "https://static.wikia.nocookie.net/merge-mansion/images/f/f5/Bench05.png/revision/latest?cb=20201218183051",
     "officialName": "Chair",
     "mpcKey": "Item_GardenBench5"
   },
@@ -1173,7 +1173,7 @@
     "level": 6,
     "chainName": "Bench",
     "desc": "MERGE to create a Fancy Garden Bench.",
-    "imageUrl": "https://static.wikia.nocookie.net/merge-mansion/images/1/16/Garden_bench6.png/revision/latest/scale-to-width-down/64",
+    "imageUrl": "https://static.wikia.nocookie.net/merge-mansion/images/2/2b/Bench06.png/revision/latest?cb=20201218183109",
     "officialName": "Garden Bench",
     "mpcKey": "Item_GardenBench6"
   },
@@ -1183,7 +1183,7 @@
     "level": 7,
     "chainName": "Bench",
     "desc": "MERGE to create an Armchair.",
-    "imageUrl": "https://static.wikia.nocookie.net/merge-mansion/images/2/2c/Garden_bench7.png/revision/latest/scale-to-width-down/64",
+    "imageUrl": "https://static.wikia.nocookie.net/merge-mansion/images/6/69/Bench07.png/revision/latest?cb=20201218183125",
     "officialName": "Fancy Garden Bench",
     "mpcKey": "Item_GardenBench7"
   },
@@ -1193,7 +1193,7 @@
     "level": 8,
     "chainName": "Bench",
     "desc": "MERGE to create a Comfy Armchair.",
-    "imageUrl": "https://static.wikia.nocookie.net/merge-mansion/images/8/81/Garden_bench8.png/revision/latest/scale-to-width-down/64",
+    "imageUrl": "https://static.wikia.nocookie.net/merge-mansion/images/9/98/Bench08.png/revision/latest?cb=20201218183144",
     "officialName": "Armchair",
     "mpcKey": "Item_GardenBench8"
   },
@@ -1203,7 +1203,7 @@
     "level": 9,
     "chainName": "Bench",
     "desc": "This item is at its max level and can no longer be merged.",
-    "imageUrl": "https://static.wikia.nocookie.net/merge-mansion/images/6/61/Garden_bench9.png/revision/latest/scale-to-width-down/64",
+    "imageUrl": "https://static.wikia.nocookie.net/merge-mansion/images/7/7a/Bench09.png/revision/latest?cb=20201218183201",
     "officialName": "Comfy Armchair",
     "mpcKey": "Item_GardenBench9"
   },
