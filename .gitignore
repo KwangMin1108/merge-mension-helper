@@ -3,3 +3,4 @@ raw_*.lua
 __pycache__/
 *.pyc
 *.py
+data_origin/
