@@ -2897,7 +2897,7 @@
     "level": 1,
     "chainName": "Yarn",
     "desc": "MERGE to create a Bundle of Yarn.",
-    "imageUrl": "images/Silk1.png",
+    "imageUrl": "images/Yarn01.png",
     "officialName": "Yarn",
     "mpcKey": "Item_Thread1"
   },
@@ -2907,7 +2907,7 @@
     "level": 2,
     "chainName": "Yarn",
     "desc": "MERGE to create a Ball of Yarn.",
-    "imageUrl": "https://static.wikia.nocookie.net/merge-mansion/images/6/6d/Thread01.png/revision/latest/scale-to-width-down/64",
+    "imageUrl": "images/Yarn02.png",
     "officialName": "Bundle of Yarn",
     "mpcKey": "Item_Thread2"
   },
@@ -2917,7 +2917,7 @@
     "level": 3,
     "chainName": "Yarn",
     "desc": "MERGE to create a Bigger Ball of Yarn.",
-    "imageUrl": "https://static.wikia.nocookie.net/merge-mansion/images/f/f7/YarnLvl2.png/revision/latest/scale-to-width-down/64",
+    "imageUrl": "images/Yarn03.png",
     "officialName": "Ball of Yarn",
     "mpcKey": "Item_Thread3"
   },
@@ -2927,7 +2927,7 @@
     "level": 4,
     "chainName": "Yarn",
     "desc": "MERGE to create Balls of Yarn.",
-    "imageUrl": "images/YarnLvl3.png",
+    "imageUrl": "images/Yarn04.png",
     "officialName": "Bigger Ball of Yarn",
     "mpcKey": "Item_Thread4"
   },
@@ -2937,7 +2937,7 @@
     "level": 5,
     "chainName": "Yarn",
     "desc": "MERGE to create More Balls of Yarn.",
-    "imageUrl": "images/Yarn4.png",
+    "imageUrl": "images/Yarn05.png",
     "officialName": "Balls of Yarn",
     "mpcKey": "Item_Thread5"
   },
@@ -2947,7 +2947,7 @@
     "level": 6,
     "chainName": "Yarn",
     "desc": "MERGE to create a Pile of Yarn.",
-    "imageUrl": "images/Yarn5.png",
+    "imageUrl": "images/Yarn06.png",
     "officialName": "More Balls of Yarn",
     "mpcKey": "Item_Thread6"
   },
@@ -2957,7 +2957,7 @@
     "level": 7,
     "chainName": "Yarn",
     "desc": "MERGE to create a Load of Yarn.",
-    "imageUrl": "https://static.wikia.nocookie.net/merge-mansion/images/2/2b/Yarn6.png/revision/latest/scale-to-width-down/64",
+    "imageUrl": "images/Yarn07.png",
     "officialName": "Pile of Yarn",
     "mpcKey": "Item_Thread7"
   },
@@ -2967,7 +2967,7 @@
     "level": 8,
     "chainName": "Yarn",
     "desc": "MERGE to create a Weave.",
-    "imageUrl": "https://static.wikia.nocookie.net/merge-mansion/images/6/62/Yarn7.png/revision/latest/scale-to-width-down/64",
+    "imageUrl": "images/Yarn08.png",
     "officialName": "Load of Yarn",
     "mpcKey": "Item_Thread8"
   },
@@ -2977,7 +2977,7 @@
     "level": 9,
     "chainName": "Yarn",
     "desc": "MERGE to create a Woven Cloth.",
-    "imageUrl": "https://static.wikia.nocookie.net/merge-mansion/images/f/f1/Yarn8.png/revision/latest/scale-to-width-down/64",
+    "imageUrl": "images/Yarn09.png",
     "officialName": "Weave",
     "mpcKey": "Item_Thread9"
   },
@@ -2987,7 +2987,7 @@
     "level": 10,
     "chainName": "Yarn",
     "desc": "MERGE to create a Patterned Textile.",
-    "imageUrl": "https://static.wikia.nocookie.net/merge-mansion/images/8/89/Yarn9.png/revision/latest/scale-to-width-down/64",
+    "imageUrl": "images/Yarn10.png",
     "officialName": "Woven Cloth",
     "mpcKey": "Item_Thread10"
   },
@@ -2997,7 +2997,7 @@
     "level": 11,
     "chainName": "Yarn",
     "desc": "This item is at its max level and can no longer be merged.",
-    "imageUrl": "images/Yarn10.png",
+    "imageUrl": "images/Yarn11.png",
     "officialName": "Patterned Textile",
     "mpcKey": "Item_Thread11"
   },
