@@ -290,6 +290,12 @@ body {
 }
 .quest-item.done { background: var(--done); border-color: #2d6a4f; }
 .quest-item.quest-virtual { cursor: default; opacity: 0.55; border-style: dashed; pointer-events: none; }
+.quest-virtual-sync {
+  height: 4px;
+  margin: 2px 0 4px;
+  background: rgba(74, 144, 226, 0.35);
+  border-radius: 2px;
+}
 .quest-item.current { background: var(--current-bg); border-color: var(--current-border); box-shadow: 0 0 0 1px var(--current-border); }
 .quest-item.locked { opacity: 0.45; }
 .quest-header { display: flex; align-items: baseline; gap: 6px; overflow: hidden; }

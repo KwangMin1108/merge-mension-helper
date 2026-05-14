@@ -1,6 +1,3 @@
-// ── Constants ─────────────────────────────────────────────────────
-const VIRTUAL_ROOT_ID = '__root__';
-
 // ── Global state ──────────────────────────────────────────────────
 let DATA = null;
 let currentArea = null;
@@ -35,8 +32,8 @@ function loadCompletedIds(area) {
 // ── Task availability ─────────────────────────────────────────────
 function isTaskAvailable(task, inArea) {
   const parents = (task.parents || []).filter(p => inArea.has(p));
-  // Virtual root is always treated as completed
-  return parents.every(p => p === VIRTUAL_ROOT_ID || completedTaskIds.has(p));
+  // Virtual nodes (any __vnode_N__ id) are always treated as completed
+  return parents.every(p => p.startsWith('__vnode_') || completedTaskIds.has(p));
 }
 
 // ── Toggle task completion ────────────────────────────────────────

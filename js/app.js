@@ -43,36 +43,114 @@ async function loadData() {
   handleHash();
 }
 
-// If an area has multiple independent starting chains, prepend a virtual
-// root task that parents all of them so computeSegments can render them
-// as parallel branch columns.
-function injectVirtualRoot(tasks) {
+// Inject virtual nodes to normalize the DAG for computeSegments.
+//
+// Two cases handled:
+//   1. Root: multiple tasks with no in-area parents
+//      → prepend a virtual root node that parents all of them
+//   2. Sync: multiple tasks sharing the same multi-parent set
+//      → insert a virtual sync node between those parents and children
+//      e.g.  10 ─┐              10 ─┐
+//                ├→ 33, 60   →       ├→ V(sync) → 33
+//            32 ─┘              32 ─┘           → 60
+//
+// Virtual node IDs use the '__vnode_N__' prefix so isTaskAvailable()
+// can treat them as always-complete without a global constant.
+function injectVirtualNodes(tasks) {
   const inArea = new Set(tasks.map(t => t.id));
+  let vnodeCounter = 0;
+  const makeId = () => `__vnode_${vnodeCounter++}__`;
+
+  // Collect all injections needed before mutating anything
+  const injections = [];
+
+  // Case 1: multiple roots
   const roots = tasks.filter(t =>
     (t.parents || []).filter(p => inArea.has(p)).length === 0
   );
-  if (roots.length <= 1) return tasks;
+  if (roots.length > 1) {
+    injections.push({
+      type: 'root',
+      vId: makeId(),
+      parentIds: [],
+      childIds: roots.map(r => r.id)
+    });
+  }
 
-  const rootIds = roots.map(r => r.id);
-  const virtualRoot = {
-    id: VIRTUAL_ROOT_ID,
-    index: 0,
-    desc: '시작',
-    requirements: [],
-    rewards: {},
-    parents: [],
-    children: rootIds,
-    _virtual: true
-  };
+  // Case 2: tasks grouped by identical multi-parent set
+  const byParentKey = new Map();
+  for (const t of tasks) {
+    const ps = (t.parents || []).filter(p => inArea.has(p)).sort();
+    if (ps.length >= 2) {
+      const key = ps.join(',');
+      if (!byParentKey.has(key)) byParentKey.set(key, { parentIds: ps, childIds: [] });
+      byParentKey.get(key).childIds.push(t.id);
+    }
+  }
+  for (const { parentIds, childIds } of byParentKey.values()) {
+    if (childIds.length >= 2) {
+      injections.push({ type: 'sync', vId: makeId(), parentIds, childIds });
+    }
+  }
 
-  return [
-    virtualRoot,
-    ...tasks.map(t =>
-      rootIds.includes(t.id)
-        ? { ...t, parents: [VIRTUAL_ROOT_ID, ...(t.parents || [])] }
-        : t
-    )
-  ];
+  if (injections.length === 0) return tasks;
+
+  // Apply all injections: work on a mutable copy of each task
+  const taskMap = new Map(tasks.map(t => [t.id, { ...t,
+    parents:  [...(t.parents  || [])],
+    children: [...(t.children || [])]
+  }]));
+
+  const vnodeTasks = [];
+
+  for (const { type, vId, parentIds, childIds } of injections) {
+    const childSet = new Set(childIds);
+
+    // Update parent tasks: replace childIds entries with vId (once, deduped)
+    for (const pid of parentIds) {
+      const p = taskMap.get(pid);
+      if (!p) continue;
+      p.children = p.children.filter(c => !childSet.has(c));
+      if (!p.children.includes(vId)) p.children.push(vId);
+    }
+
+    // Update child tasks: replace the shared parent set with vId
+    const parentSet = new Set(parentIds);
+    for (const cid of childIds) {
+      const c = taskMap.get(cid);
+      if (!c) continue;
+      c.parents = c.parents.filter(p => !parentSet.has(p));
+      if (!c.parents.includes(vId)) c.parents.unshift(vId);
+    }
+
+    vnodeTasks.push({
+      id: vId,
+      _virtual: true,
+      _virtualType: type,   // 'root' | 'sync'
+      index: -1,
+      desc: '',
+      requirements: [],
+      rewards: {},
+      parents:  [...parentIds],
+      children: [...childIds]
+    });
+  }
+
+  // Rebuild array: updated originals + vnodes inserted at correct positions
+  let result = tasks.map(t => taskMap.get(t.id) || t);
+
+  for (const vnode of vnodeTasks) {
+    if (vnode._virtualType === 'root') {
+      result.unshift(vnode);
+    } else {
+      // Insert after the last parent in the current array
+      const positions = vnode.parents.map(pid => result.findIndex(t => t.id === pid));
+      const insertAfter = Math.max(...positions);
+      result.splice(insertAfter + 1, 0, vnode);
+    }
+  }
+
+  return result;
 }
 
 // Load full area data (tasks) on first access; cached on the area object.
@@ -80,7 +158,7 @@ async function loadAreaTasks(area) {
   if (area.tasks) return; // already loaded
   const resp = await fetch(`data/areas/${area.slug}.json`);
   const full = await resp.json();
-  area.tasks = injectVirtualRoot(full.tasks || []);
+  area.tasks = injectVirtualNodes(full.tasks || []);
 }
 
 // ── Screen: Area List ─────────────────────────────────────────────

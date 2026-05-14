@@ -1,16 +1,21 @@
 // ── Render quest item HTML ────────────────────────────────────────
 function renderQuestItem(task, inArea) {
-  // Virtual root: always-completed, non-interactive start marker
+  // Virtual nodes: non-interactive, always treated as completed
   if (task._virtual) {
-    return `<div class="quest-item done quest-virtual">
-      <div class="quest-left">
-        <div class="quest-header">
-          <span class="quest-idx">―</span>
-          <span class="quest-desc">시작</span>
-          <span class="done-tag">완료</span>
+    if (task._virtualType === 'root') {
+      // Start marker — subtle, full width
+      return `<div class="quest-item done quest-virtual quest-virtual-root">
+        <div class="quest-left">
+          <div class="quest-header">
+            <span class="quest-idx">―</span>
+            <span class="quest-desc">시작</span>
+            <span class="done-tag">완료</span>
+          </div>
         </div>
-      </div>
-    </div>`;
+      </div>`;
+    }
+    // Sync marker — thin horizontal separator between converging and diverging chains
+    return `<div class="quest-virtual-sync"></div>`;
   }
 
   const isDone = completedTaskIds.has(task.id);
