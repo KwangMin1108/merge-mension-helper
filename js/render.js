@@ -22,7 +22,7 @@ function renderQuestItem(task, inArea) {
   const available = isTaskAvailable(task, inArea);
   const cls = isDone ? 'done' : available ? 'current' : 'locked';
 
-  const reqs = task.requirements.map(r => {
+  const reqs = (task.requirements || []).map(r => {
     const item = DATA.items[r.name] || {};
     const name = t(item.mpcKey, item.name || r.name);
     const url = imgUrl(item.imageUrl);
@@ -67,7 +67,7 @@ function renderSwimlane(columns, inArea) {
 
   // Each lane: { segs, ptr, laneId } — laneId uses dot-notation for hierarchy
   let lanes = columns.map((col, i) => ({
-    segs: computeSegments(col), ptr: 0, laneId: String(i)
+    segs: col, ptr: 0, laneId: String(i)
   }));
 
   // Collect all rows before building HTML (needed for transition mapping)
@@ -82,7 +82,7 @@ function renderSwimlane(columns, inArea) {
       if (l.ptr < l.segs.length && l.segs[l.ptr].type === 'branch') {
         const inner = l.segs[l.ptr]; l.ptr++;
         const subs = inner.columns.map((sub, si) => ({
-          segs: computeSegments(sub), ptr: 0,
+          segs: sub, ptr: 0,
           laneId: l.laneId + '.' + si
         }));
         lanes.splice(i, 1, ...subs);
