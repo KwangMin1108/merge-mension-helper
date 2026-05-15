@@ -1,10 +1,11 @@
 // ── Branch layout: DAG → segment tree ────────────────────────────
 //
-// Returns a flat list of segments:
+// Returns a nested segment list:
 //   { type: 'linear', task }
-//   { type: 'branch', columns: [[task, ...], ...] }
+//   { type: 'branch', columns: [segment[], segment[], ...] }
 //
-// Multiple independent starting chains are handled by injectVirtualRoot()
+// Columns are themselves arrays of segments, enabling nested branches.
+// Multiple independent starting chains are handled by injectVirtualNodes()
 // in app.js, which prepends a virtual task that parents all root tasks.
 
 function computeSegments(tasks) {
@@ -29,55 +30,66 @@ function computeSegments(tasks) {
     return visited;
   }
 
-  const segments = [];
+  // processedIds is shared across all recursive calls to prevent double-processing
   const processedIds = new Set();
 
-  for (let i = 0; i < tasks.length; i++) {
-    const task = tasks[i];
-    if (processedIds.has(task.id)) continue;
+  function buildSegments(taskList) {
+    const segments = [];
+    const inCurrentList = new Set(taskList.map(t => t.id));
 
-    const forwardChildren = (task.children || []).filter(c => inArea.has(c));
+    for (let i = 0; i < taskList.length; i++) {
+      const task = taskList[i];
+      if (processedIds.has(task.id)) continue;
 
-    if (forwardChildren.length >= 2) {
-      segments.push({ type: 'linear', task });
-      processedIds.add(task.id);
+      const forwardChildren = (task.children || []).filter(c => inCurrentList.has(c));
 
-      // Compute descendant sets for each branch child
-      const childDescs = forwardChildren.map(c => getDescendants(c));
+      if (forwardChildren.length >= 2) {
+        segments.push({ type: 'linear', task });
+        processedIds.add(task.id);
 
-      // Merge points: reachable from ALL branch children
-      const mergeIds = new Set([...childDescs[0]].filter(id =>
-        childDescs.every(ds => ds.has(id))
-      ));
+        // Compute descendant sets for each branch child
+        const childDescs = forwardChildren.map(c => getDescendants(c));
 
-      // Exclusive tasks per branch (not in merge set)
-      const exclusiveSets = childDescs.map(ds =>
-        new Set([...ds].filter(id => !mergeIds.has(id)))
-      );
+        // Merge points: reachable from ALL branch children
+        const mergeIds = new Set([...childDescs[0]].filter(id =>
+          childDescs.every(ds => ds.has(id))
+        ));
 
-      // Collect ordered tasks for each column from the tasks array
-      const colArrays = exclusiveSets.map(() => []);
-      for (let j = i + 1; j < tasks.length; j++) {
-        const t = tasks[j];
-        if (mergeIds.has(t.id)) break;
-        if (processedIds.has(t.id)) continue;
-        for (let ci = 0; ci < exclusiveSets.length; ci++) {
-          if (exclusiveSets[ci].has(t.id)) {
-            colArrays[ci].push(t);
-            processedIds.add(t.id);
-            break;
+        // Exclusive tasks per branch (not in merge set)
+        const exclusiveSets = childDescs.map(ds =>
+          new Set([...ds].filter(id => !mergeIds.has(id)))
+        );
+
+        // Collect ordered tasks for each column from taskList.
+        // Skip merge tasks (continue, not break) so that exclusive tasks
+        // appearing after a merge task in index order are still collected.
+        const colTaskLists = exclusiveSets.map(() => []);
+        for (let j = i + 1; j < taskList.length; j++) {
+          const t = taskList[j];
+          if (mergeIds.has(t.id)) continue;   // skip merge tasks — do NOT break
+          if (processedIds.has(t.id)) continue;
+          for (let ci = 0; ci < exclusiveSets.length; ci++) {
+            if (exclusiveSets[ci].has(t.id)) {
+              colTaskLists[ci].push(t);
+              break;
+            }
           }
         }
-      }
 
-      if (colArrays.some(col => col.length > 0)) {
-        segments.push({ type: 'branch', columns: colArrays });
+        // Recursively build segments for each column's task list
+        const colSegments = colTaskLists.map(colTasks => buildSegments(colTasks));
+
+        if (colSegments.some(col => col.length > 0)) {
+          segments.push({ type: 'branch', columns: colSegments });
+        }
+      } else {
+        segments.push({ type: 'linear', task });
+        processedIds.add(task.id);
       }
-    } else {
-      segments.push({ type: 'linear', task });
-      processedIds.add(task.id);
     }
+
+    return segments;
   }
 
-  return segments;
+  return buildSegments(tasks);
 }
