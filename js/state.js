@@ -3,6 +3,7 @@ let DATA = null;
 let currentArea = null;
 let completedTaskIds = new Set();
 let itemViewCompact = true;
+let questViewFlat = false;
 
 // ── Utility ───────────────────────────────────────────────────────
 function imgUrl(url) {

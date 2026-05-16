@@ -5,4 +5,5 @@ __pycache__/
 *.py
 data_origin/
 CLAUDE.md
+RETROSPECTIVE.md
 .claude/

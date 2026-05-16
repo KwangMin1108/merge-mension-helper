@@ -381,3 +381,70 @@ body {
 .spinner { width: 36px; height: 36px; border: 3px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin .8s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
 #loading p { color: var(--text-dim); font-size: 13px; }
+
+/* ── Flat view ─────────────────────────────── */
+.view-toggle-btn {
+  font-size: 11px; padding: 3px 8px; border-radius: 12px;
+  background: var(--card); border: 1px solid var(--border);
+  color: var(--text); cursor: pointer; flex-shrink: 0;
+  transition: background .15s;
+}
+.view-toggle-btn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+.flat-body { display: flex; flex-direction: column; }
+
+/* Row = [좌측 유령 슬롯들] [활성 영역(flex:1)] [우측 유령 슬롯들] */
+.flat-row {
+  display: flex;
+  align-items: stretch;
+  gap: 4px;
+  padding: 0 4px;
+}
+.flat-ghost-slot {
+  width: 12px;
+  flex-shrink: 0;
+  position: relative;
+}
+.flat-ghost-slot.occupied::before {
+  content: '';
+  position: absolute;
+  top: 0; bottom: 0;
+  left: 50%; width: 2px;
+  transform: translateX(-50%);
+  background: rgba(74,144,226,0.55);
+  pointer-events: none;
+}
+.flat-active-area {
+  flex: 1;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+  min-width: 0;
+}
+.flat-active-area.wide { grid-template-columns: 1fr; }
+.flat-cell { min-width: 0; position: relative; }
+.flat-cell-wide { grid-column: 1 / -1; }
+.flat-passthrough::before {
+  content: '';
+  position: absolute;
+  top: 0; bottom: 0;
+  left: 50%; width: 2px;
+  transform: translateX(-50%);
+  background: rgba(74,144,226,0.45);
+  pointer-events: none;
+}
+.flat-empty { background: transparent; }
+
+/* Connector: 유령 슬롯 + 활성영역 동일 폭 분할, SVG는 그 위에 overlay */
+.flat-connector {
+  height: 32px; position: relative;
+  display: flex; align-items: stretch;
+  gap: 4px; padding: 0 4px;
+}
+.flat-connector .flat-ghost-slot.occupied::before {
+  background: rgba(74,144,226,0.55);
+}
+.flat-connector svg {
+  position: absolute; inset: 0;
+  width: 100%; height: 100%;
+  overflow: visible; pointer-events: none;
+}

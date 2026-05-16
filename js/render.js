@@ -242,6 +242,15 @@ function drawAllConnectors(containerEl) {
 
 // ── Panel renderers ───────────────────────────────────────────────
 function renderQuests(tasks) {
+  if (questViewFlat) {
+    renderQuestsFlatMode(tasks);
+    const btn = document.getElementById('questViewToggle');
+    if (btn) { btn.textContent = '트리'; btn.classList.add('active'); }
+    return;
+  }
+  const btn = document.getElementById('questViewToggle');
+  if (btn) { btn.textContent = '평탄'; btn.classList.remove('active'); }
+
   const el = document.getElementById('questList');
   const inArea = new Set(tasks.map(t => t.id));
   _bcId = 0;
@@ -258,13 +267,17 @@ function renderQuests(tasks) {
     if (idx <= 0) {
       el.scrollTop = 0;
     } else {
-      // Scroll so the task just above the current task sits at the bottom of the viewport
       const prev = allItems[idx - 1];
       const containerRect = el.getBoundingClientRect();
       const prevRect = prev.getBoundingClientRect();
       el.scrollTop += prevRect.bottom - containerRect.bottom + 8;
     }
   });
+}
+
+function toggleQuestView() {
+  questViewFlat = !questViewFlat;
+  if (currentArea) renderQuests(currentArea.tasks);
 }
 
 function renderItems(tasks) {
