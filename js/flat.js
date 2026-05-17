@@ -407,32 +407,98 @@ function drawFlatConnectors(bodyEl) {
       drawLine(fromX, fromY, toX, toY);
     }
 
-    // 2. 새 체인 시작 — 1틱 거리 (부모 임무 직전 틱)
+    // 2 + 3. 부모 임무 한 곳에서 나가는 outgoing 라인들(새 체인 분기 + 유령선 시작)
+    //         을 모아서 부모 셀 내 source X를 분산 배치 (같은 X 중복 방지).
+    //
+    // 각 라인: { toX, toY, childCol } — childCol은 wide 부모일 때 열정렬용 (유령선은 null)
+    const outgoingByParent = new Map();
+    const pushOut = (parentId, conn) => {
+      if (!outgoingByParent.has(parentId)) outgoingByParent.set(parentId, []);
+      outgoingByParent.get(parentId).push(conn);
+    };
+    // 새 체인 분기 (case 2)
     for (const entry of nextTick) {
-      if (curByChain.has(entry.chain.id)) continue;  // 기존 체인 (연속)
+      if (curByChain.has(entry.chain.id)) continue;
       for (const parentId of (entry.chain.startAfter || [])) {
         if (taskToTick[parentId] !== Tcur) continue;
-        const parentEntry = curTick.find(e => e.task.id === parentId);
-        if (!parentEntry) continue;
-        const childCol = entry.track % 2;
-        const fromX = xOfTrackAt(Tcur,  parentEntry.track, childCol);
-        const toX   = xOfTrackAt(Tnext, entry.track);
-        const fromY = rowYAt(Tcur,  parentEntry.track, 'bottom');
-        const toY   = rowYAt(Tnext, entry.track,       'top');
-        drawLine(fromX, fromY, toX, toY);
+        const toX = xOfTrackAt(Tnext, entry.track);
+        const toY = rowYAt(Tnext, entry.track, 'top');
+        if (toX == null || toY == null) continue;
+        pushOut(parentId, { toX, toY, childCol: entry.track % 2 });
       }
     }
-
-    // 3. 유령선 시작 (이 틱이 부모틱, 자식틱이 Tnext보다 뒤 → 유령으로 진입)
+    // 유령선 시작 (case 3)
     for (const g of ghosts) {
       if (g.parentTick !== Tcur) continue;
-      if (g.childTick <= Tnext) continue;  // 1틱(케이스2)이거나 잘못된 데이터
-      const parentEntry = curTick.find(e => e.task.id === g.parentTaskId);
+      if (g.childTick <= Tnext) continue;
+      const toX = ghostSlotX(g.side, g.slot);
+      if (toX == null) continue;
+      pushOut(g.parentTaskId, { toX, toY: h, childCol: null });
+    }
+
+    // 부모 셀의 (left, width) 영역 (wide면 active-area, 아니면 own 셀)
+    function parentCellBounds(parentEntry) {
+      const sr = Math.floor(parentEntry.track / 2);
+      const ownCol = parentEntry.track % 2;
+      const row = bodyEl.querySelector(`.flat-row[data-tick="${Tcur}"][data-sr="${sr}"]`);
+      if (!row) return null;
+      const area = row.querySelector('.flat-active-area');
+      if (!area) return null;
+      let rect;
+      if (area.classList.contains('wide')) rect = area.getBoundingClientRect();
+      else {
+        const cells = [...area.children];
+        if (!cells[ownCol]) return null;
+        rect = cells[ownCol].getBoundingClientRect();
+      }
+      return { left: rect.left - gRect.left, width: rect.width };
+    }
+
+    // 부모별로 source X 결정 후 라인 추가
+    for (const [parentId, conns] of outgoingByParent) {
+      const parentEntry = curTick.find(e => e.task.id === parentId);
       if (!parentEntry) continue;
-      const fromX = xOfTrackAt(Tcur, parentEntry.track);
-      const toX   = ghostSlotX(g.side, g.slot);
       const fromY = rowYAt(Tcur, parentEntry.track, 'bottom');
-      drawLine(fromX, fromY, toX, h);
+
+      // 1차: 각 conn의 "선호" source X 계산
+      //   childCol이 있으면 wide 부모는 25%/75%로 정렬, 아니면 cell 중심
+      //   childCol이 없는 유령선은 cell 중심
+      const prefXs = conns.map(c =>
+        c.childCol != null
+          ? xOfTrackAt(Tcur, parentEntry.track, c.childCol)
+          : xOfTrackAt(Tcur, parentEntry.track)
+      );
+
+      // 같은 X(정수 픽셀 기준)에 모이는 conn들을 그룹화 → 그룹 내 분산
+      const groups = new Map();
+      for (let i = 0; i < conns.length; i++) {
+        const key = prefXs[i] != null ? Math.round(prefXs[i]) : 'null';
+        if (!groups.has(key)) groups.set(key, []);
+        groups.get(key).push(i);
+      }
+      const sourceXs = new Array(conns.length);
+      for (const [, idxs] of groups) {
+        if (idxs.length === 1) {
+          sourceXs[idxs[0]] = prefXs[idxs[0]];
+          continue;
+        }
+        // 그룹 내에서 destination X 오름차순 정렬 후 부모 셀 폭 안에서 균등 분산
+        idxs.sort((a, b) => conns[a].toX - conns[b].toX);
+        const bounds = parentCellBounds(parentEntry);
+        if (!bounds) continue;
+        const N = idxs.length;
+        for (let j = 0; j < N; j++) {
+          const frac = (j + 1) / (N + 1);
+          sourceXs[idxs[j]] = bounds.left + bounds.width * frac;
+        }
+      }
+
+      // 그리기
+      for (let i = 0; i < conns.length; i++) {
+        const c = conns[i];
+        const fromX = sourceXs[i];
+        drawLine(fromX, fromY, c.toX, c.toY);
+      }
     }
 
     // 4. 유령선 흡수 (자식틱이 Tnext, 부모틱은 Tcur보다 앞 → 유령에서 자식으로 합류)
